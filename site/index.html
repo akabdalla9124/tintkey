@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tintkey | Per-app keyboard lighting for macOS</title>
+<meta name="description" content="A macOS menu bar app that changes your QMK/VIA keyboard's RGB color to match the app you're in, and flashes or breathes the keys when an app gets a notification.">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#ecebe6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#121212" media="(prefers-color-scheme: dark)">
+
+<link rel="icon" href="favicon.ico" sizes="48x48">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Tintkey">
+<meta property="og:title" content="Tintkey | Per-app keyboard lighting for macOS">
+<meta property="og:description" content="Your keyboard changes color with the app you're in, and flashes when something needs you. QMK/VIA boards, USB or 2.4GHz.">
+<meta property="og:image" content="assets/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Tintkey app icon, a black keycap with a red glow, next to the headline: your keys know which app you're in.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Tintkey | Per-app keyboard lighting for macOS">
+<meta name="twitter:description" content="Your keyboard changes color with the app you're in, and flashes when something needs you.">
+<meta name="twitter:image" content="assets/og-card.png">
+<meta name="twitter:image:alt" content="Tintkey app icon next to the headline: your keys know which app you're in.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top" id="top">
+  <a class="brand" href="#main"><img src="assets/icon-192.png" width="32" height="32" alt=""><span data-brand>Tintkey</span><sup>&trade;</sup></a>
+  <nav aria-label="Primary">
+    <a href="#demo">Demo</a>
+    <a href="#features">Features</a>
+    <a href="#notifications">Alerts</a>
+    <a href="#connect">Connect</a>
+    <a href="#faq">FAQ</a>
+    <a class="nav-dl" href="https://github.com/OWNER/tintkey/releases/latest/download/Tintkey.dmg" data-dmg>Download</a>
+  </nav>
+</header>
+
+<main id="main">
+<section class="hero" aria-labelledby="hero-h">
+  <ul class="hero-meta" aria-label="Quick facts">
+    <li>v0.1.0</li><li>macOS 13+</li><li>Apple silicon</li><li>QMK + VIA</li><li>USB or 2.4GHz</li>
+  </ul>
+  <h1 id="hero-h">
+    <span>Your keys</span>
+    <span>know which</span>
+    <span class="h1-red">app you're in.</span>
+  </h1>
+  <div class="hero-row">
+    <p class="lede"><span data-brand>Tintkey</span> lives in the menu bar. Switch to Zoom and the keyboard goes red. Open Xcode and it goes blue. When an app gets a notification, the keys flash or breathe so you notice without looking at the screen.</p>
+    <div class="cta-stack">
+      <a class="btn btn-primary" href="https://github.com/OWNER/tintkey/releases/latest/download/Tintkey.dmg" data-dmg>Download for Mac <small>.dmg</small></a>
+      <p class="fine" data-dl-line>Version 0.1.0, 1.1 MB. macOS 13 or later, Apple silicon only. Notarized by Apple. Needs a QMK keyboard with VIA enabled.</p>
+    </div>
+  </div>
+</section>
+
+<section class="demo" id="demo" aria-labelledby="demo-h">
+  <div class="demo-head">
+    <h2 id="demo-h">Try it. Pick an app.</h2>
+    <p>A live model of the real thing. Choose the frontmost app and the whole keyboard changes color. Type on your own keyboard to press keys.</p>
+  </div>
+
+  <div class="console">
+    <div class="menubar">
+      <img class="mb-icon" src="assets/menubar-icon@2x.png" width="18" height="18" alt="">
+      <strong id="mb-app">Finder</strong>
+      <span class="mb-items" aria-hidden="true">File&nbsp;&nbsp;Edit&nbsp;&nbsp;View&nbsp;&nbsp;Window</span>
+      <span class="mb-spacer"></span>
+      <span class="mb-status" id="mb-status"><i class="dot" aria-hidden="true"></i><span id="mb-state">Ready</span></span>
+      <output class="mb-conn" id="mb-conn" aria-label="Connection">USB</output>
+    </div>
+
+    <div class="picker" role="radiogroup" aria-label="Frontmost app" id="picker"></div>
+
+    <div class="board-wrap">
+      <div class="board" id="board" role="img" aria-label="Illustration of a mechanical keyboard whose lighting color follows the selected app"></div>
+    </div>
+
+    <div class="readout">
+      <dl>
+        <div><dt>App</dt><dd id="r-app">Finder</dd></div>
+        <div><dt>Rule</dt><dd id="r-profile">None</dd></div>
+        <div><dt>Color</dt><dd id="r-hex">Keyboard's own</dd></div>
+        <div><dt>Alert</dt><dd id="r-alert">Flashing</dd></div>
+      </dl>
+      <div class="controls">
+        <div class="seg" role="radiogroup" aria-label="Connection type" id="conn">
+          <button type="button" role="radio" aria-checked="true" data-conn="USB">USB-C</button>
+          <button type="button" role="radio" aria-checked="false" data-conn="2.4G">2.4GHz dongle</button>
+        </div>
+        <div class="seg" role="radiogroup" aria-label="Alert style" id="style">
+          <button type="button" role="radio" aria-checked="true" data-style="flash">Flashing</button>
+          <button type="button" role="radio" aria-checked="false" data-style="breathe">Breathing</button>
+        </div>
+        <button type="button" class="btn btn-alert" id="ping">Send test alert</button>
+      </div>
+    </div>
+    <p class="sr-only" id="live" role="status" aria-live="polite"></p>
+  </div>
+</section>
+
+<div class="stripe" aria-hidden="true"><div></div></div>
+
+<section class="features" id="features" aria-labelledby="feat-h">
+  <h2 id="feat-h" class="big">Four jobs.<br>One menu bar icon.</h2>
+  <div class="grid">
+    <article>
+      <h3>Color per app</h3>
+      <p>Give any app its own color. Zoom red, Xcode blue, OBS green. The whole keyboard switches when that app comes to the front.</p>
+      <samp>[ PER-APP COLOR ]</samp>
+    </article>
+    <article>
+      <h3>Locked color</h3>
+      <p>Prefer one color all day? Lock it. It stays put whichever apps open or close, and notifications still show on top.</p>
+      <samp>[ LOCKED ]</samp>
+    </article>
+    <article>
+      <h3>Alert lights</h3>
+      <p>Choose which apps can light up the keyboard, in what color, flashing or breathing. Then your normal color comes back.</p>
+      <samp>[ ALERTS ]</samp>
+    </article>
+    <article>
+      <h3>Stays out of the way</h3>
+      <p>It runs from the menu bar and can open at login. Color changes are live, never saved to your keyboard's memory, and your own lighting returns when you quit.</p>
+      <samp>[ MENU BAR ]</samp>
+    </article>
+  </div>
+</section>
+
+<section class="notify" id="notifications" aria-labelledby="notif-h">
+  <h2 id="notif-h" class="big">How notifications work</h2>
+  <div class="notify-body">
+    <p class="notify-lede">macOS doesn't let apps read other apps' notifications. So <span data-brand>Tintkey</span> watches the red badge counts on Dock icons instead. When a count goes up, the keys light up.</p>
+    <ol class="steps">
+      <li><h3>Allow Accessibility</h3><p>Open System Settings, Privacy &amp; Security, Accessibility, and switch on <span data-brand>Tintkey</span>. Reading Dock badges needs this permission. Per-app colors do not.</p></li>
+      <li><h3>Let the app show a badge</h3><p>Mail, Messages, Slack and any other app with a Dock badge counts. A banner that leaves no badge can't be detected.</p></li>
+      <li><h3>Watch the keys</h3><p>The keyboard flashes or breathes in your alert color, then returns to normal. Alerts for the app already in front are skipped. Nothing about the message is read, only the count.</p></li>
+    </ol>
+    <p class="notify-note">Other tools can trigger an alert too, with a link such as <code>tintkey://alert?app=Slack&amp;style=breathe</code>.</p>
+  </div>
+</section>
+
+<section class="how" aria-labelledby="how-h">
+  <h2 id="how-h" class="big">Set up in three steps.</h2>
+  <ol>
+    <li><b aria-hidden="true">1</b><div><h3>Plug in and detect</h3><p>Connect over USB or the 2.4GHz dongle. <span data-brand>Tintkey</span> finds a VIA-enabled board on its own.</p></div></li>
+    <li><b aria-hidden="true">2</b><div><h3>Pick an app, pick a color</h3><p>Choose from your apps, set a color and a notification style. The preview above is how it will look.</p></div></li>
+    <li><b aria-hidden="true">3</b><div><h3>Forget about it</h3><p>Switch apps the way you already do. The lights change with you.</p></div></li>
+  </ol>
+</section>
+
+<section class="connect" id="connect" aria-labelledby="con-h">
+  <h2 id="con-h" class="big">Wired or<br>2.4GHz. Same app.</h2>
+  <div class="compare">
+    <div>
+      <h3>USB-C cable</h3>
+      <dl>
+        <div><dt>Works when</dt><dd>Your board is plugged in and VIA is enabled in its firmware.</dd></div>
+        <div><dt>Setup</dt><dd>Plug in. Nothing else.</dd></div>
+        <div><dt>Best for</dt><dd>The most dependable connection.</dd></div>
+      </dl>
+    </div>
+    <div>
+      <h3>2.4GHz dongle</h3>
+      <dl>
+        <div><dt>Works when</dt><dd>The dongle passes VIA through to your Mac. Most QMK wireless boards do, but it depends on the board.</dd></div>
+        <div><dt>Setup</dt><dd>Insert the dongle. If the VIA app can see your board through it, so can <span data-brand>Tintkey</span>.</dd></div>
+        <div><dt>Best for</dt><dd>Clean desks and laptop docks.</dd></div>
+      </dl>
+    </div>
+  </div>
+  <p class="connect-note">Bluetooth is not supported. macOS does not offer VIA's raw HID channel over Bluetooth.</p>
+</section>
+
+<section class="faq" id="faq" aria-labelledby="faq-h">
+  <h2 id="faq-h" class="big">Questions.</h2>
+  <div class="faq-list">
+    <details open>
+      <summary>Does it work with a wired keyboard?</summary>
+      <p>Yes. Any QMK keyboard with VIA enabled that you connect over USB. <span data-brand>Tintkey</span> talks to it the same way the VIA app does.</p>
+    </details>
+    <details>
+      <summary>Does it work over a 2.4GHz dongle?</summary>
+      <p>Yes, if the dongle passes VIA through to your Mac. If the VIA app can see your board through the dongle, so can <span data-brand>Tintkey</span>. Bluetooth is not supported.</p>
+    </details>
+    <details>
+      <summary>Which keyboards are supported?</summary>
+      <p>QMK firmware with VIA support and lighting controls (RGB Matrix, RGB Light or backlight). It was developed on a Keychron V1 Max. Stock firmware that VIA cannot open will not work.</p>
+    </details>
+    <details>
+      <summary>Can it light individual keys?</summary>
+      <p>No. Stock VIA sets one color for the whole board, so that is what <span data-brand>Tintkey</span> does. The demo above shows the same single color on every key.</p>
+    </details>
+    <details>
+      <summary>Will it wear out my keyboard's memory?</summary>
+      <p>No. Color changes are sent as live settings and never saved to the keyboard. Your own lighting comes back when you quit.</p>
+    </details>
+    <details>
+      <summary>Can it flash the keys for notifications?</summary>
+      <p>Yes, flashing or breathing, in a color you choose per app. It detects Dock badges, so it works for apps that show a badge on their Dock icon. It needs the Accessibility permission, and it reads only the count, never the content.</p>
+    </details>
+    <details>
+      <summary>Do I need to keep VIA open?</summary>
+      <p>No. Quit it while <span data-brand>Tintkey</span> runs so the two don't fight over the lighting.</p>
+    </details>
+    <details>
+      <summary>Which permissions does it ask for?</summary>
+      <p>Per-app colors need none. Notification alerts need Accessibility so it can read Dock badge counts. Nothing leaves your Mac.</p>
+    </details>
+    <details>
+      <summary>Is the download safe to open?</summary>
+      <p>The .dmg is signed with a Developer ID and notarized by Apple, so macOS opens it without a warning.</p>
+    </details>
+  </div>
+</section>
+
+<section class="download" id="download" aria-labelledby="dl-h">
+  <h2 id="dl-h">Light it<br>up.</h2>
+  <div class="dl-box">
+    <img class="dl-icon" src="assets/icon-512.png" width="112" height="112" alt="Tintkey app icon: a black keycap with a red glow">
+    <a class="btn btn-primary btn-xl" href="https://github.com/OWNER/tintkey/releases/latest/download/Tintkey.dmg" data-dmg><span>Download <span data-brand>Tintkey</span>.dmg</span></a>
+    <dl class="specs">
+      <div><dt>Version</dt><dd>0.1.0</dd></div>
+      <div><dt>Size</dt><dd>1.1 MB</dd></div>
+      <div><dt>Requires</dt><dd>macOS 13 or later</dd></div>
+      <div><dt>Chip</dt><dd>Apple silicon only</dd></div>
+      <div><dt>Security</dt><dd>Notarized by Apple</dd></div>
+      <div><dt>Keyboard</dt><dd>QMK with VIA</dd></div>
+    </dl>
+    <p class="fine">Open the .dmg, drag the app to Applications, launch it. The icon appears in your menu bar.</p>
+  </div>
+</section>
+</main>
+
+<footer>
+  <span><span data-brand>Tintkey</span>&trade; for QMK and VIA keyboards on macOS.</span>
+  <span>Not affiliated with QMK, VIA, Zoom, Apple, OBS or Figma. Those names only describe color presets.</span>
+  <a href="#top">Back to top</a>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>

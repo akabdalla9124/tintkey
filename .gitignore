@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+dist/
+.DS_Store
+.build-app/
+research/
+*.p8
+.env

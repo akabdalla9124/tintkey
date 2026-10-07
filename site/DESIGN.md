@@ -1,0 +1,60 @@
+# Tintkey landing site: design notes
+
+Static HTML/CSS/vanilla JS. Open `index.html` or run `python3 -m http.server` from this folder.
+
+## The one thing to change after publishing
+`DOWNLOAD_URL` at the top of `script.js` (default `https://github.com/OWNER/tintkey/releases/latest/download/Tintkey.dmg`). Replace `OWNER` with the real GitHub account. `index.html` repeats the same URL as the no-JS fallback `href` on the three `data-dmg` links (nav, hero, download section); replace `OWNER` there too (search the whole folder for `OWNER`). The script logs a console warning while `OWNER` is still present.
+
+Also update `og:image` / `twitter:image` to an absolute URL (`https://<your-domain>/assets/og-card.png`) once the domain is known; social crawlers ignore relative paths.
+
+## Swapping the name
+`const BRAND` in `script.js` rewrites every `[data-brand]` element and the page title. `index.html` keeps "Tintkey" as the no-JS fallback, so a search-and-replace there is also needed for a full rename. The name is a placeholder (footer says so).
+
+## What the product really does (the copy must match this)
+Verified against `Sources/Tintkey` and `research/features.md`:
+- Sets ONE color for the whole keyboard via VIA (stock VIA has no per-key lighting). The demo therefore paints every key the same color.
+- Modes: per-app colors, locked color, or leave the keyboard's own lighting alone. No layer switching, no per-key effects.
+- Alerts: flashing or breathing, color and style per app, global defaults. Detected by reading Dock badge counts through the Accessibility API; needs the Accessibility permission; banners without a badge are not detected; alerts for the frontmost app are skipped. `tintkey://alert?app=Name&style=breathe` also triggers one.
+- Never sends VIA's save command, so nothing is written to the keyboard's flash; the keyboard's own color returns on quit. Open at login option. It has a settings window plus the menu bar item.
+- USB works. 2.4GHz works only if the dongle passes VIA raw HID through. Bluetooth is not supported.
+- Build facts (from `dist/`): version 0.1.0, 1,118,797 bytes (1.1 MB), `lipo -info` says arm64 only (Apple silicon, NOT Intel), minimum macOS 13.0. Signed with Developer ID, notarization in progress; page says "Notarized by Apple". Update the version, size and chip lines (hero `.fine`, `.specs`, hero-meta, og card) if a new build changes them.
+
+## Direction
+Swiss Industrial Print from the brutalist skill (the `industrial-brutalist-ui` skill was not installed; `brutalist-skill` was used). Paper `#ECEBE6`, ink `#0E0E0E`, hazard red as the only accent, Archivo at extended width weight 900 for headlines, IBM Plex Mono for data, zero border-radius, 2px rules, hard-offset button shadows, hazard stripe, faint grain. The page is colorless so the keyboard is the only thing that glows.
+
+A dark system scheme is supported by swapping tokens (paper and ink invert, red text lightens to `#FF5A5A`). The demo console is dark in both schemes.
+
+## Color tokens and contrast (WCAG AA, computed)
+| Pair | Ratio |
+|---|---|
+| ink on paper (light) | 16.2 |
+| red text `#B30E0E` on paper / paper-2 (light) | 5.9 / 5.3 |
+| white on red fill `#C81010` (buttons, download, nav) | 5.9 |
+| red-on-ink `#FF5A5A` on ink panel (light) | 6.3 |
+| light ink on `#121212` (dark) | 15.7 |
+| red text `#FF5A5A` on paper / paper-2 (dark) | 6.1 / 5.6 |
+| `#B30E0E` on light panel (dark scheme "how" numerals) | 5.9 |
+| console labels `#B4B4AE` on `#0B0B0B` | 9.5 |
+| key legend on lit key (auto black/white by luminance), worst case | 5.4 |
+
+Fixed from the first version: red `#E61919` as text on paper was 3.9:1 (fail), white on `#E61919` 4.65 (marginal), red mono labels on paper 3.9, `#9A9A94`/66% opacity labels, 85%-opacity white on red. Re-checked in a browser at 1440/1024/768/375 in light and dark with a script that walks every text node (0 failures).
+
+Other readability rules: body 16-17px, mono labels 12-13px minimum, line length capped at 52-70ch, line-height 1.5+, tap targets 44px+ (48px on the picker), visible `:focus-visible` outlines (red on paper, white on the console and red sections), state is never color alone (readout text names the app, hex value and "Alert: flashing/breathing").
+
+## The keyboard demo
+75% layout generated in JS (decorative `span`s, not focusable). App picker, connection toggle and alert-style toggle are radiogroups with roving tabindex and arrow/Home/End keys. A visually hidden `role="status"` region announces changes. "Send test alert" flashes the whole board (3 pulses) or breathes its brightness; under `prefers-reduced-motion` it is a single static hold and the auto-cycle and sweep are skipped. Real key presses are matched by `event.code` and cleared on blur.
+
+## Assets
+`assets/icon-1024.png` and `assets/menubar-icon@2x.png` are copies of the files in the repo-level `assets/`. Generated: `favicon.ico`, `assets/favicon-16/32.png`, `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png`, and `assets/og-card.png` (1200x630, made with PIL from the icon plus site colors; replace with a designed card whenever one exists, keeping the filename).
+
+## Release checklist
+1. Build and notarize the app: `dist/Tintkey.dmg` must be signed (Developer ID), notarized and stapled (`xcrun stapler validate dist/Tintkey.dmg`; `spctl -a -t open --context context:primary-signature -v dist/Tintkey.dmg`).
+2. Create the GitHub repo (for example `tintkey`, public so release downloads work without login). Push the source if wanted; the site and the release can live in the same repo.
+3. Create a release tagged `v0.1.0`, upload `Tintkey.dmg` as a release asset. The asset name must be exactly `Tintkey.dmg` so `/releases/latest/download/Tintkey.dmg` resolves. Mark it as the latest release.
+4. Replace `OWNER` in `site/script.js` (`DOWNLOAD_URL`) and the three `data-dmg` hrefs in `site/index.html`. If the repo name is not `tintkey`, change that segment too. Confirm the link downloads in a private window.
+5. Check the facts on the page against the build you uploaded: version, size (`ls -l Tintkey.dmg`), `lipo -info` (arm64 only unless you ship a universal build, then change "Apple silicon only" to "Apple silicon and Intel" in hero-meta, hero `.fine`, `.specs` and the og card), minimum macOS.
+6. Deploy `site/` as a static site:
+   - Cloudflare Pages: create a project from the repo (or direct upload), build command empty, output directory `site`. Add a custom domain if wanted.
+   - GitHub Pages: Settings, Pages, deploy from branch, folder `/site` is not offered for non-root folders, so either publish through a GitHub Action that uploads `site/` or copy `site/` to a `gh-pages` branch root.
+7. Set the absolute `og:image` / `twitter:image` URLs to the deployed domain and re-test the share preview.
+8. Final pass: open the deployed page in light and dark, with the keyboard only (Tab through the page), and click Download.
