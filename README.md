@@ -26,4 +26,4 @@ For a signed, notarized build set `SIGN_ID` and either `NOTARY_PROFILE` or `NOTA
 - `Sources/TintkeyKit` HID discovery and the VIA client
 - `Sources/Tintkey` the menu bar app
 - `Sources/tintkey-probe` command line probe
-- `site/` the landing page
+- `docs/` the landing page
