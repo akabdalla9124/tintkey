@@ -419,14 +419,12 @@ final class Controller: ObservableObject {
     private func apply(delay: TimeInterval = 0.12) {
         pending?.cancel()
         guard connected, let backend, let d = desired() else { return }
-        let ownColor = original
-        let ownSnap = BackendSnapshot(color: original ?? HS(hue: 0, sat: 0), brightness: originalBrightness)
         let work: DispatchWorkItem
         switch d {
         case .solid(let t):
             if t == lastSent && !keysActive { return }
             work = DispatchWorkItem { [weak self] in
-                let ok = (t == ownColor) ? backend.setOwn(ownSnap) : backend.setSolid(t)
+                let ok = backend.setSolid(t)
                 let stillKeys = backend.perKeyActive
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {

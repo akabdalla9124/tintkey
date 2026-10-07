@@ -361,8 +361,6 @@ struct GeneralTab: View {
                     Text("Two keyboards of the same kind look identical, so use Flash it to see which one a row is, then pick it above. Tintkey controls one keyboard at a time, and it's remembered by its USB port.")
                         .font(.callout).foregroundStyle(.secondary)
                 }
-                Text("Keyboards without VIA (Glorious, Razer, Corsair and many others) can be controlled through the free OpenRGB app: install it, open Settings → SDK Server → Start Server, and the keyboard shows up here as \"via OpenRGB\". This is a beta feature.")
-                    .font(.callout).foregroundStyle(.secondary)
             }
             Section("Meeting mode") {
                 Toggle("Change the keyboard color while a camera or microphone is in use", isOn: $controller.meetingEnabled)
