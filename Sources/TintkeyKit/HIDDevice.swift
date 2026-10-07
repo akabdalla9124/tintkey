@@ -19,9 +19,13 @@ public struct HIDDeviceInfo {
     public let usagePage: Int
     public let usage: Int
     public let locationID: Int
+    public let serial: String
 
     public var isRawHID: Bool { usagePage == RawHID.usagePage && usage == RawHID.usage }
     public var idString: String { String(format: "%04X:%04X", vendorID, productID) }
+    /// Tells apart two identical devices (e.g. two Keychron Link dongles): serial number if it has one, else USB port.
+    public var uid: String { idString + "#" + (serial.isEmpty ? String(locationID, radix: 16) : serial) }
+    public var portLabel: String { String(locationID, radix: 16, uppercase: true) }
 }
 
 private func prop<T>(_ d: IOHIDDevice, _ key: String) -> T? {
@@ -61,7 +65,8 @@ public enum HIDScanner {
                 transport: prop(d, kIOHIDTransportKey) ?? "?",
                 usagePage: prop(d, kIOHIDPrimaryUsagePageKey) ?? 0,
                 usage: prop(d, kIOHIDPrimaryUsageKey) ?? 0,
-                locationID: prop(d, kIOHIDLocationIDKey) ?? 0
+                locationID: prop(d, kIOHIDLocationIDKey) ?? 0,
+                serial: prop(d, kIOHIDSerialNumberKey) ?? ""
             )
         }
         .sorted { ($0.vendorID, $0.productID, $0.usagePage) < ($1.vendorID, $1.productID, $1.usagePage) }

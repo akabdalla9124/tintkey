@@ -337,6 +337,33 @@ struct GeneralTab: View {
                         .font(.callout).foregroundStyle(.secondary)
                 }
             }
+            Section("Keyboard") {
+                Picker("Control", selection: $controller.selectedDevice) {
+                    Text("Automatic (first keyboard that answers)").tag(String?.none)
+                    ForEach(controller.devices, id: \.uid) { d in
+                        Text(d.label).tag(Optional(d.uid))
+                    }
+                }
+                ForEach(controller.devices, id: \.uid) { d in
+                    HStack {
+                        Image(systemName: controller.connectedUID == d.uid ? "checkmark.circle.fill" : "circle")
+                            .foregroundStyle(controller.connectedUID == d.uid ? Color.green : Color.secondary)
+                        Text(d.label)
+                        Spacer()
+                        Button("Flash it") { controller.identify(d) }
+                    }
+                    .font(.callout)
+                }
+                if controller.devices.isEmpty {
+                    Text("No VIA keyboard found. Plug one in, or insert its 2.4GHz dongle with the keyboard switched to 2.4G.")
+                        .font(.callout).foregroundStyle(.secondary)
+                } else {
+                    Text("Two keyboards of the same kind look identical, so use Flash it to see which one a row is, then pick it above. Tintkey controls one keyboard at a time, and it's remembered by its USB port.")
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+                Text("Keyboards without VIA (Glorious, Razer, Corsair and many others) can be controlled through the free OpenRGB app: install it, open Settings → SDK Server → Start Server, and the keyboard shows up here as \"via OpenRGB\". This is a beta feature.")
+                    .font(.callout).foregroundStyle(.secondary)
+            }
             Section("Meeting mode") {
                 Toggle("Change the keyboard color while a camera or microphone is in use", isOn: $controller.meetingEnabled)
                 if controller.meetingEnabled {

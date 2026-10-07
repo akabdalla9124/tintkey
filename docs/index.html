@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tintkey | Per-app keyboard lighting for macOS</title>
-<meta name="description" content="A macOS menu bar app that changes your QMK/VIA keyboard's RGB color to match the app you're in, and flashes or breathes the keys when an app gets a notification.">
+<meta name="description" content="A macOS menu bar app that changes your QMK/VIA keyboard's RGB color to match the app you're in, turns it red on calls, follows your Focus, and flashes or breathes the keys for the apps you choose. Other keyboards work through OpenRGB (beta).">
 <link rel="canonical" href="https://tintkey.vercel.app/">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#ecebe6" media="(prefers-color-scheme: light)">
@@ -18,7 +18,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Tintkey">
 <meta property="og:title" content="Tintkey | Per-app keyboard lighting for macOS">
-<meta property="og:description" content="Your keyboard changes color with the app you're in, and flashes when something needs you. QMK/VIA boards, USB or 2.4GHz.">
+<meta property="og:description" content="Your keyboard changes color with the app you're in, and flashes when something needs you. QMK/VIA boards, USB or 2.4GHz, plus other brands through OpenRGB (beta).">
 <meta property="og:image" content="https://tintkey.vercel.app/assets/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -44,6 +44,7 @@
     <a href="#features">Features</a>
     <a href="#notifications">Alerts</a>
     <a href="#connect">Connect</a>
+    <a href="#keyboards">Keyboards</a>
     <a href="#faq">FAQ</a>
     <a class="nav-dl" href="https://github.com/akabdalla9124/tintkey/releases/latest/download/Tintkey.dmg" data-dmg>Download</a>
   </nav>
@@ -52,7 +53,7 @@
 <main id="main">
 <section class="hero" aria-labelledby="hero-h">
   <ul class="hero-meta" aria-label="Quick facts">
-    <li>v0.1.0</li><li>macOS 13+</li><li>Apple silicon</li><li>QMK + VIA</li><li>USB or 2.4GHz</li>
+    <li>v0.2.0</li><li>macOS 13+</li><li>Apple silicon</li><li>QMK + VIA</li><li>OpenRGB beta</li><li>USB or 2.4GHz</li>
   </ul>
   <h1 id="hero-h">
     <span>Your keys</span>
@@ -60,10 +61,10 @@
     <span class="h1-red">app you're in.</span>
   </h1>
   <div class="hero-row">
-    <p class="lede"><span data-brand>Tintkey</span> lives in the menu bar. Switch to Zoom and the keyboard goes red. Open Xcode and it goes blue. When an app gets a notification, the keys flash or breathe so you notice without looking at the screen.</p>
+    <p class="lede"><span data-brand>Tintkey</span> lives in the menu bar. Switch to Zoom and the keyboard goes red. Open Xcode and it goes blue. Join a call or turn on a Focus and it changes again. When an app you chose gets a notification, the keys flash or breathe so you notice without looking at the screen.</p>
     <div class="cta-stack">
       <a class="btn btn-primary" href="https://github.com/akabdalla9124/tintkey/releases/latest/download/Tintkey.dmg" data-dmg>Download for Mac <small>.dmg</small></a>
-      <p class="fine" data-dl-line>Version 0.1.0, 1.1 MB. macOS 13 or later, Apple silicon only. Notarized by Apple. Needs a QMK keyboard with VIA enabled.</p>
+      <p class="fine" data-dl-line>Version 0.2.0, 2.1 MB. macOS 13 or later, Apple silicon only. Notarized by Apple. Works with QMK keyboards that have VIA enabled, and with others through OpenRGB (beta).</p>
     </div>
   </div>
 </section>
@@ -71,7 +72,7 @@
 <section class="demo" id="demo" aria-labelledby="demo-h">
   <div class="demo-head">
     <h2 id="demo-h">Try it. Pick an app.</h2>
-    <p>A live model of the real thing. Choose the frontmost app and the whole keyboard changes color. Type on your own keyboard to press keys.</p>
+    <p>A live model of the real thing. Choose the frontmost app, or Meeting, and the keyboard changes color. Final Cut shows per-key colors. Type on your own keyboard to press keys.</p>
   </div>
 
   <div class="console">
@@ -116,12 +117,17 @@
 <div class="stripe" aria-hidden="true"><div></div></div>
 
 <section class="features" id="features" aria-labelledby="feat-h">
-  <h2 id="feat-h" class="big">Four jobs.<br>One menu bar icon.</h2>
+  <h2 id="feat-h" class="big">Eight jobs.<br>One menu bar icon.</h2>
   <div class="grid">
     <article>
       <h3>Color per app</h3>
       <p>Give any app its own color. Zoom red, Xcode blue, OBS green. The whole keyboard switches when that app comes to the front.</p>
       <samp>[ PER-APP COLOR ]</samp>
+    </article>
+    <article>
+      <h3>Per-key colors</h3>
+      <p>Open <b>Keys&hellip;</b> for an app, click keys on a picture of your keyboard and color them. Needs Keychron firmware with Per Key RGB (V1 Max today). Anywhere else the board stays one color.</p>
+      <samp>[ PER-KEY ]</samp>
     </article>
     <article>
       <h3>Locked color</h3>
@@ -130,13 +136,28 @@
     </article>
     <article>
       <h3>Alert lights</h3>
-      <p>Choose which apps can light up the keyboard, in what color, flashing or breathing. Then your normal color comes back.</p>
+      <p>Pick the apps that can light up the keyboard, each with its own color, flashing or breathing. Then your normal color comes back.</p>
       <samp>[ ALERTS ]</samp>
+    </article>
+    <article>
+      <h3>Meeting mode</h3>
+      <p>While any app is using your camera or microphone, the keyboard turns a color you choose, red by default. Camera and mic are separate switches. No permission needed.</p>
+      <samp>[ MEETING ]</samp>
+    </article>
+    <article>
+      <h3>Focus mode</h3>
+      <p>Turn on a macOS Focus and the keyboard changes color. Work, Do Not Disturb and Sleep can each have their own. Optional Full Disk Access reads it; Shortcuts can tell <span data-brand>Tintkey</span> instead.</p>
+      <samp>[ FOCUS ]</samp>
     </article>
     <article>
       <h3>Stays out of the way</h3>
       <p>It runs from the menu bar and can open at login. Color changes are live, never saved to your keyboard's memory, and your own lighting returns when you quit.</p>
       <samp>[ MENU BAR ]</samp>
+    </article>
+    <article>
+      <h3>Updates itself</h3>
+      <p>Choose Check for Updates&hellip; in the menu, or switch on automatic checks. Every update is signed, so only real releases install.</p>
+      <samp>[ UPDATES ]</samp>
     </article>
   </div>
 </section>
@@ -144,11 +165,11 @@
 <section class="notify" id="notifications" aria-labelledby="notif-h">
   <h2 id="notif-h" class="big">How notifications work</h2>
   <div class="notify-body">
-    <p class="notify-lede">macOS doesn't let apps read other apps' notifications. So <span data-brand>Tintkey</span> watches the red badge counts on Dock icons instead. When a count goes up, the keys light up.</p>
+    <p class="notify-lede">Only the apps you add on the Notifications tab can light the keyboard. macOS doesn't let apps read other apps' notifications, so <span data-brand>Tintkey</span> watches the red badge counts on Dock icons instead. When a listed app's count goes up, the keys light up.</p>
     <ol class="steps">
-      <li><h3>Allow Accessibility</h3><p>Open System Settings, Privacy &amp; Security, Accessibility, and switch on <span data-brand>Tintkey</span>. Reading Dock badges needs this permission. Per-app colors do not.</p></li>
-      <li><h3>Let the app show a badge</h3><p>Mail, Messages, Slack and any other app with a Dock badge counts. A banner that leaves no badge can't be detected.</p></li>
-      <li><h3>Watch the keys</h3><p>The keyboard flashes or breathes in your alert color, then returns to normal. Alerts for the app already in front are skipped. Nothing about the message is read, only the count.</p></li>
+      <li><h3>Add the apps you care about</h3><p>On the Notifications tab, list Mail, Slack, Messages or any app. Each gets its own color and Flashing or Breathing style, or the defaults. It has a Notify switch and a Test button too. You also set how many blinks.</p></li>
+      <li><h3>Allow Accessibility</h3><p>Open System Settings, Privacy &amp; Security, Accessibility, and switch on <span data-brand>Tintkey</span>. Reading Dock badges needs this permission. Per-app colors do not. An app has to show a Dock badge; a banner that leaves none can't be detected.</p></li>
+      <li><h3>Watch the keys</h3><p>The keyboard flashes or breathes in that app's color, then returns to normal. Alerts for the app already in front are skipped. Nothing about the message is read, only the count.</p></li>
     </ol>
     <p class="notify-note">Other tools can trigger an alert too, with a link such as <code>tintkey://alert?app=Slack&amp;style=breathe</code>.</p>
   </div>
@@ -183,7 +204,20 @@
       </dl>
     </div>
   </div>
-  <p class="connect-note">Bluetooth is not supported. macOS does not offer VIA's raw HID channel over Bluetooth.</p>
+  <p class="connect-note">This page covers QMK/VIA boards. <a href="#keyboards">Other keyboards connect through OpenRGB.</a> Bluetooth is not supported. macOS does not offer VIA's raw HID channel over Bluetooth.</p>
+</section>
+
+<section class="notify" id="keyboards" aria-labelledby="kb-h">
+  <h2 id="kb-h" class="big">Works with<br>more keyboards.</h2>
+  <div class="notify-body">
+    <p class="notify-lede">No QMK or VIA? <span data-brand>Tintkey</span> can also drive any keyboard that the free, open-source app <a href="https://openrgb.org">OpenRGB</a> supports, with no firmware flashing. It talks to OpenRGB over a local connection on your own Mac. OpenRGB is a separate app, and <span data-brand>Tintkey</span> does not bundle it.</p>
+    <ol class="steps">
+      <li><h3>Install OpenRGB</h3><p>Download it free from <a href="https://openrgb.org">openrgb.org</a> and check that your keyboard is on its supported devices list.</p></li>
+      <li><h3>Start its SDK server</h3><p>In OpenRGB, open Settings, then SDK Server, then Start Server. It listens on this Mac only (127.0.0.1, port 6742).</p></li>
+      <li><h3>Pick it in <span data-brand>Tintkey</span></h3><p>Open General, then the Keyboard list. Your board appears as its name followed by (via OpenRGB). Choose it.</p></li>
+    </ol>
+    <p class="notify-note"><b>Beta.</b> Whole-board colors, notification flashing and breathing (breathing is emulated by dimming the color), Meeting colors and Focus colors all work. Per-key colors do not yet. It has not been tested on every keyboard, and it only works for keyboards OpenRGB itself supports. Native support for more keyboards (starting with Glorious) is in progress.</p>
+  </div>
 </section>
 
 <section class="faq" id="faq" aria-labelledby="faq-h">
@@ -191,7 +225,7 @@
   <div class="faq-list">
     <details open>
       <summary>Does it work with a wired keyboard?</summary>
-      <p>Yes. Any QMK keyboard with VIA enabled that you connect over USB. <span data-brand>Tintkey</span> talks to it the same way the VIA app does.</p>
+      <p>Yes. Any QMK keyboard with VIA enabled that you connect over USB. <span data-brand>Tintkey</span> talks to it the same way the VIA app does. Other brands can be wired too, through OpenRGB (beta).</p>
     </details>
     <details>
       <summary>Does it work over a 2.4GHz dongle?</summary>
@@ -199,19 +233,43 @@
     </details>
     <details>
       <summary>Which keyboards are supported?</summary>
-      <p>QMK firmware with VIA support and lighting controls (RGB Matrix, RGB Light or backlight). It was developed on a Keychron V1 Max. Stock firmware that VIA cannot open will not work.</p>
+      <p>Natively: QMK firmware with VIA support and lighting controls (RGB Matrix, RGB Light or backlight), USB or a 2.4GHz dongle that passes VIA through. It was developed on a Keychron V1 Max. Beyond that, any keyboard OpenRGB supports works through OpenRGB (beta), see the Keyboards section. Per-key colors need Keychron firmware with Per Key RGB, see below.</p>
+    </details>
+    <details>
+      <summary>Does it work with my Razer, Corsair, Glorious or other keyboard?</summary>
+      <p>If OpenRGB supports it, probably yes, through OpenRGB's local SDK server. This is a beta, and it is not tested on every model, so check the supported devices list at openrgb.org first. The Glorious GMMK PRO is not on OpenRGB's list, so it does not work this way yet. Native support for more keyboards, starting with Glorious, is in progress.</p>
+    </details>
+    <details>
+      <summary>Do I need to flash firmware?</summary>
+      <p>No. <span data-brand>Tintkey</span> never flashes anything. A QMK/VIA board needs VIA enabled, which many already have. Other brands keep their stock firmware and are reached through OpenRGB, which is a separate app (GPL) that you install yourself.</p>
+    </details>
+    <details>
+      <summary>Can I use two keyboards?</summary>
+      <p>One at a time. <span data-brand>Tintkey</span> lists every keyboard it finds under General, Keyboard, and you switch between them. If two look the same, press Flash it to blink one and see which is which. Your choice is remembered by USB port.</p>
     </details>
     <details>
       <summary>Can it light individual keys?</summary>
-      <p>No. Stock VIA sets one color for the whole board, so that is what <span data-brand>Tintkey</span> does. The demo above shows the same single color on every key.</p>
+      <p>Yes, on some keyboards. Each app can have its own key colors, set in the Keys&hellip; editor on a picture of your keyboard. It needs Keychron firmware with Per Key RGB, which today means the V1 Max in its 81-key layout. <span data-brand>Tintkey</span> checks whether your keyboard supports it and otherwise stays with one color for the whole board. Every key shows a color, so a single key can't be switched off. The demo's Final Cut shows the idea.</p>
     </details>
     <details>
       <summary>Will it wear out my keyboard's memory?</summary>
-      <p>No. Color changes are sent as live settings and never saved to the keyboard. Your own lighting comes back when you quit.</p>
+      <p>No. Color changes, per-key colors included, are sent as live settings and never saved to the keyboard. Your own lighting comes back when you leave the app or quit.</p>
     </details>
     <details>
       <summary>Can it flash the keys for notifications?</summary>
-      <p>Yes, flashing or breathing, in a color you choose per app. It detects Dock badges, so it works for apps that show a badge on their Dock icon. It needs the Accessibility permission, and it reads only the count, never the content.</p>
+      <p>Yes, for the apps you add on the Notifications tab. Only those apps alert, each flashing or breathing in its own color. It detects Dock badges, so the app must show a badge on its Dock icon. It needs the Accessibility permission, and it reads only the count, never the content.</p>
+    </details>
+    <details>
+      <summary>What does Meeting mode do, and can it get it wrong?</summary>
+      <p>When any app is using the camera or microphone, the keyboard turns your meeting color, red by default. You can choose camera, microphone or both, and it needs no permission. It only knows that a device is in use, not by what, so dictation, Siri or a voice recorder count as the microphone. Turn Microphone off if that gets in the way. A meeting wins over a Focus color. It starts switched off.</p>
+    </details>
+    <details>
+      <summary>How does Focus mode work?</summary>
+      <p>With Focus mode on, the keyboard takes a color while a macOS Focus is on, and each Focus (Work, Do Not Disturb, Sleep and so on) can have its own. macOS only lets apps read Focus with Full Disk Access, which is optional. Without it, create a Shortcuts automation for each Focus that opens <code>tintkey://focus?on=1&amp;mode=Work</code> when it turns on and <code>tintkey://focus?on=0</code> when it turns off.</p>
+    </details>
+    <details>
+      <summary>Does it update itself?</summary>
+      <p>Yes. Choose Check for Updates&hellip; in the menu bar, or switch on automatic checks in General. Updates are signed. Version 0.1.0 has no updater, so if you have it, download 0.2.0 once by hand.</p>
     </details>
     <details>
       <summary>Do I need to keep VIA open?</summary>
@@ -219,7 +277,7 @@
     </details>
     <details>
       <summary>Which permissions does it ask for?</summary>
-      <p>Per-app colors need none. Notification alerts need Accessibility so it can read Dock badge counts. Nothing leaves your Mac.</p>
+      <p>Per-app colors and Meeting mode need none. Notification alerts need Accessibility so it can read Dock badge counts. Reading your Focus is optional and needs Full Disk Access. The OpenRGB option only connects to 127.0.0.1 on your own Mac. Nothing leaves your Mac.</p>
     </details>
     <details>
       <summary>Is the download safe to open?</summary>
@@ -234,12 +292,12 @@
     <img class="dl-icon" src="assets/icon-512.png" width="112" height="112" alt="Tintkey app icon: a black keycap with a red glow">
     <a class="btn btn-primary btn-xl" href="https://github.com/akabdalla9124/tintkey/releases/latest/download/Tintkey.dmg" data-dmg><span>Download <span data-brand>Tintkey</span>.dmg</span></a>
     <dl class="specs">
-      <div><dt>Version</dt><dd>0.1.0</dd></div>
-      <div><dt>Size</dt><dd>1.1 MB</dd></div>
+      <div><dt>Version</dt><dd>0.2.0</dd></div>
+      <div><dt>Size</dt><dd>2.1 MB</dd></div>
       <div><dt>Requires</dt><dd>macOS 13 or later</dd></div>
       <div><dt>Chip</dt><dd>Apple silicon only</dd></div>
       <div><dt>Security</dt><dd>Notarized by Apple</dd></div>
-      <div><dt>Keyboard</dt><dd>QMK with VIA</dd></div>
+      <div><dt>Keyboard</dt><dd>QMK/VIA, or OpenRGB (beta)</dd></div>
     </dl>
     <p class="fine">Open the .dmg, drag the app to Applications, launch it. The icon appears in your menu bar.</p>
   </div>
@@ -247,7 +305,7 @@
 </main>
 
 <footer>
-  <span><span data-brand>Tintkey</span>&trade; for QMK and VIA keyboards on macOS.</span>
+  <span><span data-brand>Tintkey</span>&trade; for QMK/VIA keyboards on macOS, and others through OpenRGB (beta).</span>
   <span>Not affiliated with QMK, VIA, Zoom, Apple, OBS or Figma. Those names only describe color presets.</span>
   <a href="#top">Back to top</a>
 </footer>

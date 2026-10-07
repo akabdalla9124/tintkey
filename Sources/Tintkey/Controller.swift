@@ -58,9 +58,15 @@ final class Controller: ObservableObject {
     @Published private(set) var dockAccess = DockBadgeWatcher.isTrusted
     /// The keyboard answered Keychron's per-key commands and matches the V1 Max layout.
     @Published private(set) var perKeySupported = false
+    /// Every VIA raw-HID interface found (two dongles = two rows).
+    @Published private(set) var devices: [KeyboardEntry] = []
+    /// uid of the device the user picked; nil = Automatic (first one that answers).
+    @Published var selectedDevice: String? { didSet { defaults.set(selectedDevice, forKey: "selectedDevice"); poll() } }
+    @Published private(set) var connectedUID: String?
+    private var skippedUIDs: Set<String> = []
 
     private let hid = DispatchQueue(label: "tintkey.hid")
-    private var via: VIAClient?
+    private var backend: KeyboardBackend?
     private var original: HS?
     private var originalBrightness: UInt8 = 255
     private var lastBrightness: UInt8?
@@ -68,11 +74,11 @@ final class Controller: ObservableObject {
     private var connecting = false
     private var pending: DispatchWorkItem?
     private var lastSent: HS?
-    private var driver: KeyDriver?
     private var keysActive = false
     private var lastFrame: [HSV]?
     private var alertOverride: HS?
     private var blinkTask: Task<Void, Never>?
+    private var termSource: DispatchSourceSignal?
     private let watcher = DockBadgeWatcher()
     private let urls = URLReceiver()
 
@@ -92,6 +98,7 @@ final class Controller: ObservableObject {
         focusColors = Self.load([String: HS].self, "focusColors") ?? [:]
         focusIgnored = Set(defaults.stringArray(forKey: "focusIgnored") ?? [])
         knownFocus = Self.load([String: String].self, "knownFocus") ?? [:]
+        selectedDevice = defaults.string(forKey: "selectedDevice")
         alertBlinks = defaults.object(forKey: "alertBlinks") as? Int ?? 3
 
         if let app = NSWorkspace.shared.frontmostApplication { note(app) }
@@ -120,15 +127,18 @@ final class Controller: ObservableObject {
         }
         NSAppleEventManager.shared().setEventHandler(urls, andSelector: #selector(URLReceiver.handle(_:reply:)),
                                                      forEventClass: AEEventClass(kInternetEventClass), andEventID: AEEventID(kAEGetURL))
+        // `kill`, logout and shutdown send SIGTERM, which skips willTerminate; give the keyboard its own lighting back first.
+        signal(SIGTERM, SIG_IGN)
+        termSource = DispatchSource.makeSignalSource(signal: SIGTERM, queue: .main)
+        termSource?.setEventHandler { [weak self] in
+            MainActor.assumeIsolated { self?.restoreOriginal(); exit(0) }
+        }
+        termSource?.resume()
         NotificationCenter.default.addObserver(forName: NSApplication.willTerminateNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.restoreOriginal() }
         }
         poll()
     }
-
-    /// This firmware reads back one less than what was set (255 reads 254, 100 reads 99; 0 and 1 both read 0).
-    /// Converting reads to "set" units keeps save/restore from losing a step each time.
-    nonisolated static func level(fromRead r: UInt8) -> UInt8 { r == 0 ? 0 : UInt8(min(255, Int(r) + 1)) }
 
     // MARK: Frontmost app
 
@@ -222,12 +232,12 @@ final class Controller: ObservableObject {
     }
 
     private func sendBrightness(_ level: UInt8) {
-        guard let via, level != lastBrightness else { return }
+        guard let backend, level != lastBrightness else { return }
         lastBrightness = level
         hid.async { [weak self] in
             // A failed send must not be remembered as applied, or the restore to the original would be skipped.
-            if !via.setBrightness(.rgbMatrix, level) {
-                DispatchQueue.main.async { MainActor.assumeIsolated { if self?.via === via { self?.lastBrightness = nil } } }
+            if !backend.setBrightness(level) {
+                DispatchQueue.main.async { MainActor.assumeIsolated { if self?.backend === backend { self?.lastBrightness = nil } } }
             }
         }
     }
@@ -302,54 +312,62 @@ final class Controller: ObservableObject {
 
     // MARK: Keyboard
 
-    /// Looks for the raw HID interface; connects/disconnects as the cable or dongle comes and goes.
+    /// Looks for controllable keyboards; connects/disconnects as cables and dongles come and go.
     private func poll() {
         hid.async { [weak self] in
-            let found = HIDScanner.rawHIDDevices().first
+            let found = Discovery.scan()
             DispatchQueue.main.async { MainActor.assumeIsolated { self?.handleScan(found) } }
         }
     }
 
-    private func handleScan(_ found: HIDDeviceInfo?) {
-        guard let found else {
-            if connected { disconnect() }
-            return
+    private func handleScan(_ found: [KeyboardEntry]) {
+        if found.map(\.uid) != devices.map(\.uid) { devices = found; skippedUIDs = [] }
+
+        // Which keyboard we want: the one the user picked, otherwise the current one, otherwise the first that answers.
+        let wanted: KeyboardEntry?
+        if let sel = selectedDevice { wanted = found.first { $0.uid == sel } }
+        else if let cur = connectedUID, let d = found.first(where: { $0.uid == cur }) { wanted = d }
+        else { wanted = found.first { !skippedUIDs.contains($0.uid) } }
+
+        if connected, wanted?.uid != connectedUID {
+            // Switched keyboards, or the connected one went away: give back its own lighting if it's still there.
+            if found.contains(where: { $0.uid == connectedUID }) { restoreOriginal() }
+            disconnect()
         }
-        guard !connected, !connecting else { return }
+        guard let target = wanted, !connected, !connecting else { return }
         connecting = true
-        let client = VIAClient(found)
+        let candidate = target.make()
         hid.async { [weak self] in
-            let version = client.protocolVersion()
-            let color = client.lighting(.rgbMatrix, .color)
-            let brightness = client.lighting(.rgbMatrix, .brightness)?.first.map(Self.level(fromRead:))
-            let drv = KeyDriver(client)
-            let keys = drv.probe()
+            let snap = candidate.open()
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.connecting = false
-                    guard version != nil, let c = color, c.count >= 2 else { return }
-                    self.via = client
-                    self.driver = drv
-                    self.perKeySupported = keys
+                    guard let snap else {
+                        self.skippedUIDs.insert(target.uid)   // not answering (asleep, off, not supported): try the next one
+                        return
+                    }
+                    self.backend = candidate
+                    self.connectedUID = target.uid
+                    self.perKeySupported = snap.perKey
                     // If the keyboard is still showing the last color we sent (we were killed or dropped
                     // mid-session), the user's real colors are the ones we saved, not what it shows now.
-                    let shown = HS(hue: c[0], sat: c[1])
+                    let shown = snap.color
                     if let saved = Self.load(HS.self, "savedOriginal"), let applied = Self.load(HS.self, "savedApplied"), applied == shown {
                         self.original = saved
                         self.originalBrightness = UInt8(clamping: self.defaults.integer(forKey: "savedBrightness"))
                     } else {
                         self.original = shown
-                        self.originalBrightness = brightness ?? 255
+                        self.originalBrightness = snap.brightness ?? 255
                     }
                     self.save(self.original, "savedOriginal")
                     self.defaults.set(Int(self.originalBrightness), forKey: "savedBrightness")
                     self.save(shown, "savedApplied")
                     self.lastSent = shown
-                    self.lastBrightness = brightness
+                    self.lastBrightness = snap.brightness
                     // A crash mid-breathe leaves the keyboard dim; put the saved brightness back.
-                    if let b = brightness, b != self.originalBrightness { self.sendBrightness(self.originalBrightness) }
-                    self.deviceName = found.product.trimmingCharacters(in: .whitespaces)
+                    if let b = snap.brightness, b != self.originalBrightness { self.sendBrightness(self.originalBrightness) }
+                    self.deviceName = target.name
                     self.connected = true
                     self.apply()
                 }
@@ -357,12 +375,17 @@ final class Controller: ObservableObject {
         }
     }
 
+    /// Briefly flashes one keyboard white so you can tell which physical keyboard a row in Settings is.
+    func identify(_ entry: KeyboardEntry) {
+        hid.async { entry.make().flash() }
+    }
+
     private func disconnect() {
         pending?.cancel()
         blinkTask?.cancel()
         alertOverride = nil
-        via = nil; original = nil; lastSent = nil; lastBrightness = nil
-        driver = nil; perKeySupported = false; keysActive = false; lastFrame = nil
+        backend = nil; original = nil; lastSent = nil; lastBrightness = nil
+        perKeySupported = false; keysActive = false; lastFrame = nil; connectedUID = nil
         connected = false
         deviceName = "No keyboard"
     }
@@ -395,23 +418,21 @@ final class Controller: ObservableObject {
     /// Debounced so rapid app switches only send the last state; alerts pass delay 0.
     private func apply(delay: TimeInterval = 0.12) {
         pending?.cancel()
-        guard connected, let via, let d = desired() else { return }
-        let drv = driver
+        guard connected, let backend, let d = desired() else { return }
+        let ownColor = original
+        let ownSnap = BackendSnapshot(color: original ?? HS(hue: 0, sat: 0), brightness: originalBrightness)
         let work: DispatchWorkItem
         switch d {
         case .solid(let t):
             if t == lastSent && !keysActive { return }
             work = DispatchWorkItem { [weak self] in
-                // Leaving per-key mode first brings the keyboard's own effect back, then the solid color goes on top.
-                let left = drv?.leave() ?? true
-                // One slow reply isn't a disconnect, so retry once before giving up.
-                let ok = via.setColor(.rgbMatrix, hue: t.hue, saturation: t.sat) != nil
-                    || via.setColor(.rgbMatrix, hue: t.hue, saturation: t.sat) != nil
+                let ok = (t == ownColor) ? backend.setOwn(ownSnap) : backend.setSolid(t)
+                let stillKeys = backend.perKeyActive
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
-                        // Ignore results from a client that was already replaced by a disconnect/reconnect.
-                        guard let self, self.via === via else { return }
-                        if ok { self.lastSent = t; self.keysActive = !left; self.lastFrame = nil; self.save(t, "savedApplied") }
+                        // Ignore results from a keyboard that was already replaced by a disconnect/reconnect.
+                        guard let self, self.backend === backend else { return }
+                        if ok { self.lastSent = t; self.keysActive = stillKeys; self.lastFrame = nil; self.save(t, "savedApplied") }
                         else { self.disconnect() }
                     }
                 }
@@ -419,10 +440,10 @@ final class Controller: ObservableObject {
         case .frame(let f):
             if keysActive && f == lastFrame { return }
             work = DispatchWorkItem { [weak self] in
-                let ok = drv?.show(f) ?? false
+                let ok = backend.showFrame(f)
                 DispatchQueue.main.async {
                     MainActor.assumeIsolated {
-                        guard let self, self.via === via else { return }
+                        guard let self, self.backend === backend else { return }
                         if ok { self.keysActive = true; self.lastFrame = f; self.lastSent = nil }
                         else { self.perKeySupported = false; self.keysActive = false; self.lastFrame = nil; self.lastSent = nil; self.apply(delay: 0) }
                     }
@@ -437,14 +458,9 @@ final class Controller: ObservableObject {
     private func restoreOriginal() {
         pending?.cancel()
         blinkTask?.cancel()
-        if let via, let original {
-            let brightness = originalBrightness
-            let drv = driver
-            hid.sync {
-                drv?.leave()
-                _ = via.setColor(.rgbMatrix, hue: original.hue, saturation: original.sat)
-                _ = via.setBrightness(.rgbMatrix, brightness)
-            }
+        if let backend, let original {
+            let snap = BackendSnapshot(color: original, brightness: originalBrightness)
+            hid.sync { backend.restore(snap) }
             save(original, "savedApplied")
         }
     }

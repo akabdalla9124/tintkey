@@ -38,7 +38,13 @@ const APPS = [
   { id: "xcode",    name: "Xcode",      rule: "Build blue",      base: "#2f7bff", alert: "#ffc247", alertName: "Amber" },
   { id: "obs",      name: "OBS Studio", rule: "Stream green",    base: "#18d66b", alert: "#ff2b3a", alertName: "Red" },
   { id: "figma",    name: "Figma",      rule: "Canvas violet",   base: "#a35cff", alert: "#18d6a5", alertName: "Teal" },
-  { id: "terminal", name: "Terminal",   rule: "Phosphor amber",  base: "#ffb000", alert: "#ff5a2b", alertName: "Orange" }
+  { id: "terminal", name: "Terminal",   rule: "Phosphor amber",  base: "#ffb000", alert: "#ff5a2b", alertName: "Orange" },
+  /* Final Cut: per-key profile. Keys not listed use the app color. */
+  { id: "fcp",      name: "Final Cut",  rule: "Per-key colors",  base: "#18d6a5", alert: "#ff2b3a", alertName: "Red",
+    keys: { j: "#ffb000", k: "#ffb000", l: "#ffb000" } },
+  /* Meeting mode: camera or mic in use, whole board in the meeting color (red by default). */
+  { id: "meeting",  name: "Meeting",    rule: "Meeting mode",    base: "#ff2b3a", alert: "#ffffff", alertName: "White",
+    ready: "Meeting mode on" }
 ];
 const colorOf = app => app.base || app.hex;
 
@@ -97,13 +103,14 @@ let alertStyle = "flash";
 let alertTimers = [];
 let breatheAnim = null;
 
-function paint(hex, { sweep = true } = {}) {
+function paint(hex, { sweep = true, keys = null } = {}) {
   const animate = sweep && !reduceMotion.matches;
   keyEls.forEach(el => {
     const k = el._k;
+    const c = (keys && keys[k.id]) || hex;
     el.style.setProperty("--d", animate ? Math.round(k.x * 420 + k.r * 28) + "ms" : "0ms");
-    el.style.setProperty("--k", hex);
-    el.style.setProperty("--kink", inkOn(hex));
+    el.style.setProperty("--k", c);
+    el.style.setProperty("--kink", inkOn(c));
   });
   board.style.setProperty("--glow", hex);
 }
@@ -111,12 +118,13 @@ function paint(hex, { sweep = true } = {}) {
 function apply(app, { sweep = true } = {}) {
   current = app;
   const hex = colorOf(app);
-  paint(hex, { sweep });
+  paint(hex, { sweep, keys: app.keys });
+  setState(app.ready || "Ready", false);
   $(".console").style.setProperty("--app", hex);
   $("#mb-app").textContent = app.name;
   $("#r-app").textContent = app.name;
   $("#r-profile").textContent = app.rule;
-  $("#r-hex").textContent = app.base ? app.base.toUpperCase() : "Keyboard's own";
+  $("#r-hex").textContent = app.base ? app.base.toUpperCase() + (app.keys ? " + " + Object.keys(app.keys).length + " KEYS" : "") : "Keyboard's own";
   document.querySelectorAll("#picker [role=radio]").forEach(b => {
     const on = b.dataset.id === app.id;
     b.setAttribute("aria-checked", on);
@@ -167,7 +175,9 @@ radioGroup(picker, b => {
   const app = APPS.find(a => a.id === b.dataset.id);
   clearAlert();
   apply(app);
-  say(`${app.name} is in front. ${app.base ? "Keyboard color " + app.base.toUpperCase() : "No rule, so the keyboard keeps its own color"}.`);
+  say(app.id === "meeting"
+    ? `Meeting mode: a camera or microphone is in use, so the whole keyboard is ${app.base.toUpperCase()}.`
+    : `${app.name} is in front. ${app.base ? "Keyboard color " + app.base.toUpperCase() : "No rule, so the keyboard keeps its own color"}${app.keys ? ", with J, K and L in a second color" : ""}.`);
 });
 
 /* ---------- connection + style toggles ---------- */
@@ -197,8 +207,8 @@ function clearAlert() {
   if (breatheAnim) { breatheAnim.cancel(); breatheAnim = null; }
   keyEls.forEach(el => el.classList.remove("alert"));
   board.classList.remove("alerting");
-  setState("Ready", false);
-  paint(colorOf(current), { sweep: false });
+  setState(current.ready || "Ready", false);
+  paint(colorOf(current), { sweep: false, keys: current.keys });
 }
 function ping() {
   clearAlert();
@@ -219,7 +229,7 @@ function ping() {
   if (alertStyle === "flash") {
     keyEls.forEach(el => el.classList.add("alert"));
     for (let p = 0; p < 3; p++) {
-      at(p * 560 + 280, () => { keyEls.forEach(el => el.classList.remove("alert")); paint(normal, { sweep: false }); });
+      at(p * 560 + 280, () => { keyEls.forEach(el => el.classList.remove("alert")); paint(normal, { sweep: false, keys: current.keys }); });
       if (p < 2) at(p * 560 + 560, () => { keyEls.forEach(el => el.classList.add("alert")); paint(col, { sweep: false }); });
     }
     after(3 * 560);

@@ -9,6 +9,51 @@ import TintkeyKit
 //   then does READ-ONLY queries: VIA protocol version and current lighting values.
 //   --all also lists every other HID interface (useful if your board doesn't show up).
 
+// --gmmk: READ-ONLY probe of a stock-firmware Glorious GMMK PRO (cmd 129 read only).
+if CommandLine.arguments.contains("--gmmk") {
+    func hex(_ b: [UInt8]) -> String { b.map { String(format: "%02X", $0) }.joined(separator: " ") }
+    func dump(_ b: [UInt8]) {
+        for off in stride(from: 0, to: b.count, by: 16) {
+            let row = Array(b[off..<min(off + 16, b.count)])
+            print(String(format: "  %03d (0x%02X): ", off, off) + hex(row))
+        }
+    }
+    let ifs = GloriousProbe.interfaces()
+    print("GMMK PRO present (VID 0x320F): \(ifs.isEmpty ? "NO" : "YES")")
+    for i in ifs {
+        print(String(format: "interface PID=0x%04X usagePage=0x%04X usage=0x%X location=0x%X product=%@", i.productID, i.usagePage, i.usage, i.locationID, i.product))
+        print("  maxInput=\(i.maxInputReportSize) maxOutput=\(i.maxOutputReportSize) maxFeature=\(i.maxFeatureReportSize)")
+        print("  descriptor (\(i.descriptor.count) bytes): \(hex(i.descriptor))")
+        print("  starts with reference prefix 06 01 FF 09 01 A1 01 85 07: \(i.descriptorMatchesReference)")
+    }
+    guard let ctl = ifs.first(where: \.isControlInterface) else {
+        print("No 0xFF01/usage 1 interface found; nothing sent.")
+        exit(1)
+    }
+    print("\nSending ONE cmd-129 read request ([7,129,1,1,0...]) then GetReport(7) on 0xFF01/1 ...")
+    do {
+        let r = try GloriousReadOnlyDevice(ctl).readState()
+        print("reply: \(r.count) bytes, byte0=\(r.first.map { String($0) } ?? "-") (7 = report ID echoed)")
+        dump(r)
+        func at(_ i: Int) -> Int { i < r.count ? Int(r[i]) : -1 }
+        print("\nFields the reference parses (profile/layer candidates, accepts first pair both in 1...3):")
+        for (a, b) in [(1, 2), (2, 3), (8, 9)] {
+            let ok = (1...3).contains(at(a)) && (1...3).contains(at(b))
+            print("  (resp[\(a)], resp[\(b)]) = (\(at(a)), \(at(b)))\(ok ? "  <- plausible profile,layer" : "")")
+        }
+        print("\nHypotheses by analogy with the WRITE layouts (UNVERIFIED, not parsed by the reference):")
+        print("  resp[1]=\(at(1)) (command echo?)  resp[2]=\(at(2)) profile?  resp[3]=\(at(3)) layer?")
+        print("  resp[4]=\(at(4)) effect id? (properties write idx 4)   resp[8]=\(at(8)) brightness 0..20? (props idx 8) / speed (effect idx 8)")
+        print("  resp[9]=\(at(9)) brightness? (effect idx 9)   resp[10]=\(at(10)) multicolor flag?   resp[15,16,17]=\(at(15)),\(at(16)),\(at(17)) RGB? (effect idx 15-17)")
+        let nz = r.enumerated().filter { $0.element != 0 && $0.offset > 3 }.map { String($0.offset) }
+        print("  other non-zero indices (all unknown): \(nz.joined(separator: ", "))")
+    } catch {
+        print("READ FAILED: \(error)")
+        exit(1)
+    }
+    exit(0)
+}
+
 let showAll = CommandLine.arguments.contains("--all")
 let all = showAll ? HIDScanner.scan() : []
 if showAll && all.isEmpty {
@@ -101,8 +146,10 @@ if let i = args.firstIndex(of: "--brightness") {
 
 // MARK: --kc-probe (read-only Keychron command survey; sends no set/save commands)
 if args.contains("--kc-probe") {
-    guard let d = raw.first else { exit(1) }
+    guard !raw.isEmpty else { exit(1) }
+    for (n, d) in raw.enumerated() {
     let via = VIAClient(d)
+    print("\n=== device \(n + 1) of \(raw.count): \(d.idString) port \(d.portLabel) ===")
     func hex(_ b: [UInt8]?, _ n: Int = 20) -> String { b.map { $0.prefix(n).map { String(format: "%02X", $0) }.joined(separator: " ") } ?? "no reply" }
     print("\nKeychron survey on \(d.idString)")
     print("A0 protocol      :", hex(via.request([0xA0])))
@@ -120,5 +167,6 @@ if args.contains("--kc-probe") {
         if s == 0 { print("A8 09 colors LED0-8 (H S V triples):", hex(r, 30)) }
     }
     print("A8 09 baseline chunks read: \(n)/9")
+    }
     exit(0)
 }
