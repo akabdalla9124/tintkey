@@ -3,7 +3,7 @@
 Static HTML/CSS/vanilla JS. Open `index.html` or run `python3 -m http.server` from this folder.
 
 ## The one thing to change after publishing
-`DOWNLOAD_URL` at the top of `script.js` (default `https://github.com/OWNER/tintkey/releases/latest/download/Tintkey.dmg`). Replace `OWNER` with the real GitHub account. `index.html` repeats the same URL as the no-JS fallback `href` on the three `data-dmg` links (nav, hero, download section); replace `OWNER` there too (search the whole folder for `OWNER`). The script logs a console warning while `OWNER` is still present.
+`DOWNLOAD_URL` at the top of `script.js` (default `https://github.com/akabdalla9124/tintkey/releases/latest/download/Tintkey.dmg`). Replace `akabdalla9124` with the real GitHub account. `index.html` repeats the same URL as the no-JS fallback `href` on the three `data-dmg` links (nav, hero, download section); replace `akabdalla9124` there too (search the whole folder for `akabdalla9124`). The script logs a console warning while `akabdalla9124` is still present.
 
 Also update `og:image` / `twitter:image` to an absolute URL (`https://<your-domain>/assets/og-card.png`) once the domain is known; social crawlers ignore relative paths.
 
@@ -51,7 +51,7 @@ Other readability rules: body 16-17px, mono labels 12-13px minimum, line length 
 1. Build and notarize the app: `dist/Tintkey.dmg` must be signed (Developer ID), notarized and stapled (`xcrun stapler validate dist/Tintkey.dmg`; `spctl -a -t open --context context:primary-signature -v dist/Tintkey.dmg`).
 2. Create the GitHub repo (for example `tintkey`, public so release downloads work without login). Push the source if wanted; the site and the release can live in the same repo.
 3. Create a release tagged `v0.1.0`, upload `Tintkey.dmg` as a release asset. The asset name must be exactly `Tintkey.dmg` so `/releases/latest/download/Tintkey.dmg` resolves. Mark it as the latest release.
-4. Replace `OWNER` in `site/script.js` (`DOWNLOAD_URL`) and the three `data-dmg` hrefs in `site/index.html`. If the repo name is not `tintkey`, change that segment too. Confirm the link downloads in a private window.
+4. Replace `akabdalla9124` in `site/script.js` (`DOWNLOAD_URL`) and the three `data-dmg` hrefs in `site/index.html`. If the repo name is not `tintkey`, change that segment too. Confirm the link downloads in a private window.
 5. Check the facts on the page against the build you uploaded: version, size (`ls -l Tintkey.dmg`), `lipo -info` (arm64 only unless you ship a universal build, then change "Apple silicon only" to "Apple silicon and Intel" in hero-meta, hero `.fine`, `.specs` and the og card), minimum macOS.
 6. Deploy `site/` as a static site:
    - Cloudflare Pages: create a project from the repo (or direct upload), build command empty, output directory `site`. Add a custom domain if wanted.

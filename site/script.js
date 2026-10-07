@@ -1,17 +1,17 @@
 /* ------------------------------------------------------------
    TWO THINGS TO CHANGE AFTER PUBLISHING
-   1. DOWNLOAD_URL: replace OWNER with the GitHub account that
+   1. DOWNLOAD_URL: replace akabdalla9124 with the GitHub account that
       hosts the release. index.html holds the same URL as the
       no-JS fallback href; keep both in sync.
    2. BRAND: the product name (placeholder).
 ------------------------------------------------------------ */
-const DOWNLOAD_URL = "https://github.com/OWNER/tintkey/releases/latest/download/Tintkey.dmg";
+const DOWNLOAD_URL = "https://github.com/akabdalla9124/tintkey/releases/latest/download/Tintkey.dmg";
 const BRAND = "Tintkey";
 
 document.querySelectorAll("[data-brand]").forEach(el => { el.textContent = BRAND; });
 document.title = `${BRAND} | Per-app keyboard lighting for macOS`;
 document.querySelectorAll("[data-dmg]").forEach(a => { a.setAttribute("href", DOWNLOAD_URL); });
-if (DOWNLOAD_URL.includes("OWNER")) console.warn("Tintkey site: DOWNLOAD_URL still contains the OWNER placeholder.");
+if (DOWNLOAD_URL.includes("akabdalla9124")) console.warn("Tintkey site: DOWNLOAD_URL still contains the akabdalla9124 placeholder.");
 
 const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
