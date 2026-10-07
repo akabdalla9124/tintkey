@@ -7,3 +7,4 @@ dist/
 research/
 *.p8
 .env
+.vercel
