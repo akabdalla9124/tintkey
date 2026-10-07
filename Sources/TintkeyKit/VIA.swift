@@ -66,7 +66,14 @@ public final class VIAClient {
     /// VIA echoes the command id, and for lighting get/set also the channel and value id, before any data.
     /// A reply only answers a request if those echoed bytes match, so stale replies are ignored.
     static func matches(request: [UInt8], reply: [UInt8]) -> Bool {
-        let n = request.first.map { $0 == Command.getProtocolVersion.rawValue ? 1 : 3 } ?? 0
+        // Keychron's 0xA0-0xA2 queries echo only the command; 0xA8 (Keychron RGB) echoes command + subcommand.
+        let n: Int
+        switch request.first {
+        case .some(Command.getProtocolVersion.rawValue), .some(0xA0), .some(0xA1), .some(0xA2): n = 1
+        case .some(0xA8): n = 2
+        case .some: n = 3
+        case .none: n = 0
+        }
         guard n > 0, request.count >= n, reply.count >= n else { return false }
         return Array(request.prefix(n)) == Array(reply.prefix(n))
     }

@@ -6,14 +6,25 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-VERSION="${VERSION:-0.1.0}"
+VERSION="${VERSION:-0.2.0}"
+# Sparkle compares CFBundleVersion numerically to decide whether an update is newer; it must rise every release.
+BUILD="${BUILD:-$(git rev-list --count HEAD 2>/dev/null || echo 1)}"
+FEED_URL="${FEED_URL:-https://tintkey.vercel.app/appcast.xml}"
+# Public half of the Sparkle update-signing key (the private half lives in the keychain; see scripts/release.sh).
+SU_PUBLIC_KEY="${SU_PUBLIC_KEY:-meHvN7I4FFpcT9PjOQCifgYnUua7fdyt+tfnJ0P58oo=}"
 SCRATCH=".build-app"
 swift build -c release --scratch-path "$SCRATCH" --product Tintkey
 BIN="$(swift build -c release --scratch-path "$SCRATCH" --show-bin-path)/Tintkey"
 
 APP="dist/Tintkey.app"
-rm -rf dist && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+rm -rf dist && mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$APP/Contents/Frameworks"
 cp "$BIN" "$APP/Contents/MacOS/Tintkey"
+
+# Sparkle (auto-updates). Not sandboxed, so its XPC services aren't needed and are removed.
+SPARKLE="$SCRATCH/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+cp -R "$SPARKLE" "$APP/Contents/Frameworks/"
+rm -rf "$APP/Contents/Frameworks/Sparkle.framework/XPCServices" "$APP/Contents/Frameworks/Sparkle.framework/Versions/B/XPCServices"
+install_name_tool -add_rpath @executable_path/../Frameworks "$APP/Contents/MacOS/Tintkey" 2>/dev/null || true
 # App icon: drop a square 1024x1024 PNG at assets/icon-1024.png and it is converted to AppIcon.icns.
 ICON_KEY=""
 if [ -f assets/icon-1024.png ]; then
@@ -39,7 +50,10 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleExecutable</key><string>Tintkey</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>${VERSION}</string>
-  <key>CFBundleVersion</key><string>${VERSION}</string>
+  <key>CFBundleVersion</key><string>${BUILD}</string>
+  <key>SUFeedURL</key><string>${FEED_URL}</string>
+  <key>SUPublicEDKey</key><string>${SU_PUBLIC_KEY}</string>
+  <key>SUEnableAutomaticChecks</key><true/>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   ${ICON_KEY}
   <key>LSUIElement</key><true/>
@@ -51,11 +65,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </dict></plist>
 PLIST
 
-if [ -n "${SIGN_ID:-}" ]; then
-  codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$APP"
-else
-  codesign --force --options runtime --sign - "$APP"
-fi
+# Sign inside-out: Sparkle's helpers, then the framework, then the app.
+sign() { if [ -n "${SIGN_ID:-}" ]; then codesign --force --options runtime --timestamp --sign "$SIGN_ID" "$@"; else codesign --force --options runtime --sign - "$@"; fi; }
+SF="$APP/Contents/Frameworks/Sparkle.framework/Versions/B"
+sign "$SF/Autoupdate"
+sign "$SF/Updater.app"
+sign "$APP/Contents/Frameworks/Sparkle.framework"
+sign "$APP"
 
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"

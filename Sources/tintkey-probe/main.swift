@@ -98,3 +98,27 @@ if let i = args.firstIndex(of: "--brightness") {
     print("\nbrightness \(level): \(ok ? "OK" : "FAILED")")
     exit(ok ? 0 : 1)
 }
+
+// MARK: --kc-probe (read-only Keychron command survey; sends no set/save commands)
+if args.contains("--kc-probe") {
+    guard let d = raw.first else { exit(1) }
+    let via = VIAClient(d)
+    func hex(_ b: [UInt8]?, _ n: Int = 20) -> String { b.map { $0.prefix(n).map { String(format: "%02X", $0) }.joined(separator: " ") } ?? "no reply" }
+    print("\nKeychron survey on \(d.idString)")
+    print("A0 protocol      :", hex(via.request([0xA0])))
+    if let r = via.request([0xA1]) { print("A1 firmware      :", String(decoding: r.dropFirst().prefix(while: { $0 != 0 }), as: UTF8.self), "|", hex(r, 12)) } else { print("A1 firmware      : no reply") }
+    print("A2 features      :", hex(via.request([0xA2])), "(per-key bit is 0x80 in the feature byte)")
+    print("A8 01 rgb version:", hex(via.request([0xA8, 0x01])))
+    print("A8 05 led count  :", hex(via.request([0xA8, 0x05])))
+    print("A8 07 per-key typ:", hex(via.request([0xA8, 0x07])))
+    print("VIA effect id    :", hex(via.request([0x08, 0x03, 0x02])))
+    for r in 0..<6 { print("A8 06 row \(r)     :", hex(via.request([0xA8, 0x06, UInt8(r), 0xFF, 0xFF, 0xFF]), 19)) }
+    var n = 0
+    for s in stride(from: 0, to: 81, by: 9) {
+        guard let r = via.request([0xA8, 0x09, UInt8(s), 9]), r.count >= 30, r[2] == 0 else { print("A8 09 start \(s): failed (\(hex(via.request([0xA8, 0x09, UInt8(s), 9]), 6)))"); continue }
+        n += 1
+        if s == 0 { print("A8 09 colors LED0-8 (H S V triples):", hex(r, 30)) }
+    }
+    print("A8 09 baseline chunks read: \(n)/9")
+    exit(0)
+}

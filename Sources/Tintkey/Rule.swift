@@ -30,7 +30,13 @@ struct Rule: Codable, Identifiable, Equatable {
     var name: String
     var hue: UInt8
     var sat: UInt8
+    /// false = notifications only: the app never changes the keyboard color while in front.
+    var baseOn: Bool = true
+    /// Listed on the Notifications tab (the app has its own notification settings).
+    var inNotifications: Bool = false
     var alertsOn: Bool = true
+    /// Per-key template: key id (see KeyLayout) -> color. Empty = the whole board uses the app color.
+    var keyColors: [String: HS] = [:]
     /// nil = use the global alert color.
     var alertHue: UInt8?
     var alertSat: UInt8?
@@ -61,10 +67,15 @@ extension Rule {
         name = try c.decode(String.self, forKey: .name)
         hue = try c.decode(UInt8.self, forKey: .hue)
         sat = try c.decode(UInt8.self, forKey: .sat)
+        baseOn = try c.decodeIfPresent(Bool.self, forKey: .baseOn) ?? true
         alertsOn = try c.decodeIfPresent(Bool.self, forKey: .alertsOn) ?? true
+        keyColors = try c.decodeIfPresent([String: HS].self, forKey: .keyColors) ?? [:]
         alertHue = try c.decodeIfPresent(UInt8.self, forKey: .alertHue)
         alertSat = try c.decodeIfPresent(UInt8.self, forKey: .alertSat)
         alertStyle = try c.decodeIfPresent(AlertStyle.self, forKey: .alertStyle)
+        // Rules saved before the Notifications tab listed apps: show those that already had custom alert settings.
+        inNotifications = try c.decodeIfPresent(Bool.self, forKey: .inNotifications)
+            ?? (alertHue != nil || alertStyle != nil || !alertsOn)
     }
 }
 

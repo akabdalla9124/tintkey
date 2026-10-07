@@ -32,11 +32,32 @@ final class Controller: ObservableObject {
     @Published var alertStyle: AlertStyle { didSet { defaults.set(alertStyle.rawValue, forKey: "alertStyle") } }
     /// Flashes or breaths per alert.
     @Published var alertBlinks: Int { didSet { defaults.set(alertBlinks, forKey: "alertBlinks") } }
+    @Published var meetingEnabled: Bool { didSet { defaults.set(meetingEnabled, forKey: "meetingEnabled"); refreshMeeting() } }
+    @Published var meetingColor: HS { didSet { save(meetingColor, "meetingColor"); apply() } }
+    @Published var meetingCamera: Bool { didSet { defaults.set(meetingCamera, forKey: "meetingCamera"); refreshMeeting() } }
+    @Published var meetingMic: Bool { didSet { defaults.set(meetingMic, forKey: "meetingMic"); refreshMeeting() } }
+    @Published private(set) var meetingActive = false
+    @Published var focusEnabled: Bool { didSet { defaults.set(focusEnabled, forKey: "focusEnabled"); refreshFocus() } }
+    @Published var focusColor: HS { didSet { save(focusColor, "focusColor"); apply() } }
+    @Published private(set) var focusActive = false
+    /// Colors per Focus mode identifier; modes without one use `focusColor`.
+    @Published var focusColors: [String: HS] { didSet { save(focusColors, "focusColors"); apply() } }
+    @Published var focusIgnored: Set<String> { didSet { defaults.set(Array(focusIgnored), forKey: "focusIgnored"); refreshFocus() } }
+    /// Focus modes seen so far (identifier -> name), kept so their rows stay in Settings when no Focus is on.
+    @Published private(set) var knownFocus: [String: String]
+    @Published private(set) var focusActiveNames: [String] = []
+    private var focusActiveColor: HS?
+    /// nil = Focus can't be read from the system (needs Full Disk Access); the URL scheme still works.
+    @Published private(set) var focusReadable: Bool?
+    private var focusViaURL: Bool?
+    private var focusURLMode: String?
     @Published private(set) var launchAtLogin = SMAppService.mainApp.status == .enabled
     @Published private(set) var connected = false
     @Published private(set) var deviceName = "No keyboard"
     @Published private(set) var frontApp: FrontApp?
     @Published private(set) var dockAccess = DockBadgeWatcher.isTrusted
+    /// The keyboard answered Keychron's per-key commands and matches the V1 Max layout.
+    @Published private(set) var perKeySupported = false
 
     private let hid = DispatchQueue(label: "tintkey.hid")
     private var via: VIAClient?
@@ -47,6 +68,9 @@ final class Controller: ObservableObject {
     private var connecting = false
     private var pending: DispatchWorkItem?
     private var lastSent: HS?
+    private var driver: KeyDriver?
+    private var keysActive = false
+    private var lastFrame: [HSV]?
     private var alertOverride: HS?
     private var blinkTask: Task<Void, Never>?
     private let watcher = DockBadgeWatcher()
@@ -59,6 +83,15 @@ final class Controller: ObservableObject {
         alertsEnabled = defaults.object(forKey: "alertsEnabled") as? Bool ?? true
         alertColor = Self.load(HS.self, "alertColor") ?? HS(hue: 0, sat: 255)
         alertStyle = AlertStyle(rawValue: defaults.string(forKey: "alertStyle") ?? "") ?? .flash
+        meetingEnabled = defaults.object(forKey: "meetingEnabled") as? Bool ?? false
+        meetingColor = Self.load(HS.self, "meetingColor") ?? HS(hue: 0, sat: 255)
+        meetingCamera = defaults.object(forKey: "meetingCamera") as? Bool ?? true
+        meetingMic = defaults.object(forKey: "meetingMic") as? Bool ?? true
+        focusEnabled = defaults.object(forKey: "focusEnabled") as? Bool ?? false
+        focusColor = Self.load(HS.self, "focusColor") ?? HS(hue: 190, sat: 255)
+        focusColors = Self.load([String: HS].self, "focusColors") ?? [:]
+        focusIgnored = Set(defaults.stringArray(forKey: "focusIgnored") ?? [])
+        knownFocus = Self.load([String: String].self, "knownFocus") ?? [:]
         alertBlinks = defaults.object(forKey: "alertBlinks") as? Int ?? 3
 
         if let app = NSWorkspace.shared.frontmostApplication { note(app) }
@@ -69,6 +102,9 @@ final class Controller: ObservableObject {
         }
         nc.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.lastSent = nil; self?.poll(); self?.apply() }
+        }
+        Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshMeeting(); self?.refreshFocus() }
         }
         Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.dockAccess = DockBadgeWatcher.isTrusted; self?.poll() }
@@ -105,8 +141,32 @@ final class Controller: ObservableObject {
     func rule(for app: FrontApp?) -> Rule? { app.flatMap { a in rules.first { $0.bundleID == a.bundleID } } }
 
     func addRuleForFrontApp() {
-        guard let app = frontApp, rule(for: app) == nil else { return }
-        rules.append(Rule(bundleID: app.bundleID, name: app.name, hue: 0, sat: 255))
+        guard let app = frontApp else { return }
+        addRule(bundleID: app.bundleID, name: app.name, to: .colors)
+    }
+
+    enum RuleList { case colors, notifications }
+
+    /// Adds an app to one of the two lists, reusing its rule if it is already in the other.
+    func addRule(bundleID: String, name: String, to list: RuleList) {
+        if let i = rules.firstIndex(where: { $0.bundleID == bundleID }) {
+            if list == .colors { rules[i].baseOn = true } else { rules[i].inNotifications = true }
+            return
+        }
+        var r = Rule(bundleID: bundleID, name: name, hue: 0, sat: 255)
+        r.baseOn = list == .colors
+        r.inNotifications = list == .notifications
+        rules.append(r)
+    }
+
+    /// Takes an app off one list; the rule is deleted once it is on neither.
+    func removeRule(bundleID: String, from list: RuleList) {
+        guard let i = rules.firstIndex(where: { $0.bundleID == bundleID }) else { return }
+        if list == .colors { rules[i].baseOn = false } else {
+            rules[i].inNotifications = false; rules[i].alertsOn = true
+            rules[i].setAlert(nil); rules[i].alertStyle = nil
+        }
+        if !rules[i].baseOn && !rules[i].inNotifications { rules.remove(at: i) }
     }
 
     // MARK: Alerts
@@ -114,10 +174,11 @@ final class Controller: ObservableObject {
     /// A Dock badge appeared on `name`. Alerts for the app you're already looking at are skipped.
     private func badgeAppeared(for name: String) {
         guard alertsEnabled else { return }
-        let rule = rules.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }
-        if rule?.alertsOn == false { return }
+        // Only apps listed on the Notifications tab alert; everything else stays silent.
+        guard let rule = rules.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }),
+              rule.inNotifications, rule.alertsOn else { return }
         if let front = frontApp, front.name.caseInsensitiveCompare(name) == .orderedSame { return }
-        alert(rule?.alert ?? alertColor, style: rule?.alertStyle ?? alertStyle)
+        alert(rule.alert ?? alertColor, style: rule.alertStyle ?? alertStyle)
     }
 
     /// Flashing swaps between the alert color and the normal color. Breathing holds the alert color
@@ -194,8 +255,47 @@ final class Controller: ObservableObject {
             if let custom { lockColor = custom }
             mode = .locked
         case "unlock": mode = .perApp
+        case "focus":
+            focusViaURL = q["on"] == "1"
+            focusURLMode = q["mode"]
+            refreshFocus()
         default: break
         }
+    }
+
+    private func refreshMeeting() {
+        let on = meetingEnabled && ((meetingCamera && MediaUse.cameraInUse()) || (meetingMic && MediaUse.micInUse()))
+        if on != meetingActive { meetingActive = on; apply(delay: 0.2) }
+    }
+
+    private func refreshFocus() {
+        let snap = FocusState.read()
+        if focusReadable != snap.readable { focusReadable = snap.readable }
+
+        var ids: [String] = []
+        if snap.readable {
+            var known = knownFocus
+            for (id, name) in snap.names where known[id] != name { known[id] = name }
+            for id in snap.active where known[id] == nil && id != "unknown" { known[id] = Self.prettyFocusName(id) }
+            if known != knownFocus { knownFocus = known; save(known, "knownFocus") }
+            ids = snap.active
+        } else if focusViaURL == true {
+            // A Shortcuts automation reported it. Match the optional mode name to a known mode.
+            let match = focusURLMode.flatMap { n in knownFocus.first { $0.value.caseInsensitiveCompare(n) == .orderedSame }?.key }
+            ids = [match ?? "unknown"]
+        }
+
+        let live = focusEnabled ? ids.filter { !focusIgnored.contains($0) } : []
+        let color = live.first.map { focusColors[$0] ?? focusColor }
+        let names = live.map { knownFocus[$0] ?? "Focus" }
+        if names != focusActiveNames { focusActiveNames = names }
+        let on = color != nil
+        if on != focusActive || color != focusActiveColor { focusActive = on; focusActiveColor = color; apply(delay: 0.2) }
+    }
+
+    private static func prettyFocusName(_ id: String) -> String {
+        let tail = id.split(separator: ".").last.map(String.init) ?? id
+        return tail == "default" ? "Do Not Disturb" : tail.capitalized
     }
 
     func requestDockAccess() { DockBadgeWatcher.requestTrust() }
@@ -222,12 +322,16 @@ final class Controller: ObservableObject {
             let version = client.protocolVersion()
             let color = client.lighting(.rgbMatrix, .color)
             let brightness = client.lighting(.rgbMatrix, .brightness)?.first.map(Self.level(fromRead:))
+            let drv = KeyDriver(client)
+            let keys = drv.probe()
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.connecting = false
                     guard version != nil, let c = color, c.count >= 2 else { return }
                     self.via = client
+                    self.driver = drv
+                    self.perKeySupported = keys
                     // If the keyboard is still showing the last color we sent (we were killed or dropped
                     // mid-session), the user's real colors are the ones we saved, not what it shows now.
                     let shown = HS(hue: c[0], sat: c[1])
@@ -258,32 +362,70 @@ final class Controller: ObservableObject {
         blinkTask?.cancel()
         alertOverride = nil
         via = nil; original = nil; lastSent = nil; lastBrightness = nil
+        driver = nil; perKeySupported = false; keysActive = false; lastFrame = nil
         connected = false
         deviceName = "No keyboard"
     }
 
-    private func target() -> HS? {
-        if let alertOverride { return alertOverride }
+    private enum Desired { case solid(HS), frame([HSV]) }
+
+    private func fill(_ c: HS) -> [HSV] { Array(repeating: HSV(h: c.hue, s: c.sat, v: 255), count: KeyLayout.ledCount) }
+
+    private func desired() -> Desired? {
+        guard let original else { return nil }
+        // While the per-key effect is showing, an alert paints every key so it isn't hidden behind the key map.
+        if let alertOverride { return keysActive ? .frame(fill(alertOverride)) : .solid(alertOverride) }
+        // Meeting and Focus colors sit above the normal modes; a meeting wins over a Focus.
+        func over(_ c: HS) -> Desired { keysActive ? .frame(fill(c)) : .solid(c) }
+        if meetingActive { return over(meetingColor) }
+        if focusActive, let c = focusActiveColor { return over(c) }
         switch mode {
-        case .off: return original
-        case .locked: return lockColor
-        case .perApp: return rule(for: frontApp)?.base ?? original
+        case .off: return .solid(original)
+        case .locked: return .solid(lockColor)
+        case .perApp:
+            guard let r = rule(for: frontApp) else { return .solid(original) }
+            let base = r.baseOn ? r.base : original
+            guard perKeySupported, !r.keyColors.isEmpty else { return .solid(base) }
+            var f = fill(base)
+            for key in KeyLayout.v1MaxANSI { if let c = r.keyColors[key.id] { f[key.led] = HSV(h: c.hue, s: c.sat, v: 255) } }
+            return .frame(f)
         }
     }
 
-    /// Debounced so rapid app switches only send the last color; alerts pass delay 0.
+    /// Debounced so rapid app switches only send the last state; alerts pass delay 0.
     private func apply(delay: TimeInterval = 0.12) {
         pending?.cancel()
-        guard connected, let via, let t = target(), t != lastSent else { return }
-        let work = DispatchWorkItem { [weak self] in
-            // One slow reply isn't a disconnect, so retry once before giving up.
-            let ok = via.setColor(.rgbMatrix, hue: t.hue, saturation: t.sat) != nil
-                || via.setColor(.rgbMatrix, hue: t.hue, saturation: t.sat) != nil
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    // Ignore results from a client that was already replaced by a disconnect/reconnect.
-                    guard let self, self.via === via else { return }
-                    if ok { self.lastSent = t; self.save(t, "savedApplied") } else { self.disconnect() }
+        guard connected, let via, let d = desired() else { return }
+        let drv = driver
+        let work: DispatchWorkItem
+        switch d {
+        case .solid(let t):
+            if t == lastSent && !keysActive { return }
+            work = DispatchWorkItem { [weak self] in
+                // Leaving per-key mode first brings the keyboard's own effect back, then the solid color goes on top.
+                let left = drv?.leave() ?? true
+                // One slow reply isn't a disconnect, so retry once before giving up.
+                let ok = via.setColor(.rgbMatrix, hue: t.hue, saturation: t.sat) != nil
+                    || via.setColor(.rgbMatrix, hue: t.hue, saturation: t.sat) != nil
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        // Ignore results from a client that was already replaced by a disconnect/reconnect.
+                        guard let self, self.via === via else { return }
+                        if ok { self.lastSent = t; self.keysActive = !left; self.lastFrame = nil; self.save(t, "savedApplied") }
+                        else { self.disconnect() }
+                    }
+                }
+            }
+        case .frame(let f):
+            if keysActive && f == lastFrame { return }
+            work = DispatchWorkItem { [weak self] in
+                let ok = drv?.show(f) ?? false
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self, self.via === via else { return }
+                        if ok { self.keysActive = true; self.lastFrame = f; self.lastSent = nil }
+                        else { self.perKeySupported = false; self.keysActive = false; self.lastFrame = nil; self.lastSent = nil; self.apply(delay: 0) }
+                    }
                 }
             }
         }
@@ -297,7 +439,9 @@ final class Controller: ObservableObject {
         blinkTask?.cancel()
         if let via, let original {
             let brightness = originalBrightness
+            let drv = driver
             hid.sync {
+                drv?.leave()
                 _ = via.setColor(.rgbMatrix, hue: original.hue, saturation: original.sat)
                 _ = via.setBrightness(.rgbMatrix, brightness)
             }
