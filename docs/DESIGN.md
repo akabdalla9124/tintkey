@@ -12,7 +12,7 @@ Also update `og:image` / `twitter:image` to an absolute URL (`https://<your-doma
 
 ## What the product really does (the copy must match this)
 Verified against `Sources/Tintkey` and `research/features.md`:
-- Base behavior: ONE color for the whole keyboard via VIA. Per-key colors are the exception (v0.2.0): the "Keys..." editor per app, only on Keychron firmware with Per Key RGB (V1 Max 81-key layout today). The app detects support and stays whole-board otherwise; every key shows a color (a key can't be switched off); nothing is saved to the keyboard.
+- Base behavior: ONE color for the whole keyboard via VIA. Per-key colors are the exception (v0.2.1): the "Keys..." editor per app, only on Keychron firmware with Per Key RGB (V1 Max 81-key layout today). The app detects support and stays whole-board otherwise; every key shows a color (a key can't be switched off); nothing is saved to the keyboard.
 - Modes: per-app colors, locked color, or leave the keyboard's own lighting alone.
 - Meeting mode (off by default): chosen color (red by default) while any app uses the camera and/or microphone; camera and mic are separate; no permission; dictation/Siri count as mic. Beats Focus.
 - Focus mode (off by default): a color per macOS Focus (Work, Do Not Disturb, Sleep...). Reading Focus needs optional Full Disk Access; otherwise Shortcuts call `tintkey://focus?on=1&mode=Work` and `tintkey://focus?on=0`.
@@ -21,7 +21,7 @@ Verified against `Sources/Tintkey` and `research/features.md`:
 - Never sends VIA's save command, so nothing is written to the keyboard's flash; the keyboard's own color returns on quit. Open at login option. It has a settings window plus the menu bar item.
 - Several keyboards: all found boards are listed, one is controlled at a time, "Flash it" blinks one to identify it, choice remembered by USB port.
 - USB works. 2.4GHz works only if the dongle passes VIA raw HID through. Bluetooth is not supported.
-- Build facts (from `dist/`): version 0.2.0, 2,224,085 bytes (2.1 MB, `dist/Tintkey-0.2.0.dmg`), `lipo -info` says arm64 only (Apple silicon, NOT Intel), minimum macOS 13.0. Signed with Developer ID, notarization in progress; page says "Notarized by Apple". Update the version, size and chip lines (hero `.fine`, `.specs`, hero-meta, og card, and the 0.1.0 mention in the updates FAQ) if a new build changes them.
+- Build facts (from `dist/`): version 0.2.1, 2,266,586 bytes (2.2 MB, `dist/Tintkey-0.2.1.dmg`), `lipo -info` says arm64 only (Apple silicon, NOT Intel), minimum macOS 13.0. Signed with Developer ID, notarization in progress; page says "Notarized by Apple". Update the version, size and chip lines (hero `.fine`, `.specs`, hero-meta, og card, and the 0.1.0 mention in the updates FAQ) if a new build changes them.
 
 ## Direction
 Swiss Industrial Print from the brutalist skill (the `industrial-brutalist-ui` skill was not installed; `brutalist-skill` was used). Paper `#ECEBE6`, ink `#0E0E0E`, hazard red as the only accent, Archivo at extended width weight 900 for headlines, IBM Plex Mono for data, zero border-radius, 2px rules, hard-offset button shadows, hazard stripe, faint grain. The page is colorless so the keyboard is the only thing that glows.
@@ -54,7 +54,7 @@ Other readability rules: body 16-17px, mono labels 12-13px minimum, line length 
 ## Release checklist
 1. Build and notarize the app: `dist/Tintkey.dmg` must be signed (Developer ID), notarized and stapled (`xcrun stapler validate dist/Tintkey.dmg`; `spctl -a -t open --context context:primary-signature -v dist/Tintkey.dmg`).
 2. Create the GitHub repo (for example `tintkey`, public so release downloads work without login). Push the source if wanted; the site and the release can live in the same repo.
-3. Create a release tagged `v0.2.0` (see `scripts/release.sh`), upload `Tintkey.dmg` as a release asset. The asset name must be exactly `Tintkey.dmg` so `/releases/latest/download/Tintkey.dmg` resolves. Mark it as the latest release.
+3. Create a release tagged `v0.2.1` (see `scripts/release.sh`), upload `Tintkey.dmg` as a release asset. The asset name must be exactly `Tintkey.dmg` so `/releases/latest/download/Tintkey.dmg` resolves. Mark it as the latest release.
 4. Replace `akabdalla9124` in `site/script.js` (`DOWNLOAD_URL`) and the three `data-dmg` hrefs in `site/index.html`. If the repo name is not `tintkey`, change that segment too. Confirm the link downloads in a private window.
 5. Check the facts on the page against the build you uploaded: version, size (`ls -l Tintkey.dmg`), `lipo -info` (arm64 only unless you ship a universal build, then change "Apple silicon only" to "Apple silicon and Intel" in hero-meta, hero `.fine`, `.specs` and the og card), minimum macOS.
 6. Deploy `site/` as a static site:

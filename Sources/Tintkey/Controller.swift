@@ -42,7 +42,9 @@ final class Controller: ObservableObject {
     @Published private(set) var focusActive = false
     /// Colors per Focus mode identifier; modes without one use `focusColor`.
     @Published var focusColors: [String: HS] { didSet { save(focusColors, "focusColors"); apply() } }
-    @Published var focusIgnored: Set<String> { didSet { defaults.set(Array(focusIgnored), forKey: "focusIgnored"); refreshFocus() } }
+    /// Focus modes that change the keyboard. Opt-in: a Focus you haven't ticked leaves the keyboard alone, so a scheduled
+    /// Focus (Sleep, Do Not Disturb) can't silently override your app colors.
+    @Published var focusUsed: Set<String> { didSet { defaults.set(Array(focusUsed), forKey: "focusUsed"); refreshFocus() } }
     /// Focus modes seen so far (identifier -> name), kept so their rows stay in Settings when no Focus is on.
     @Published private(set) var knownFocus: [String: String]
     @Published private(set) var focusActiveNames: [String] = []
@@ -96,7 +98,7 @@ final class Controller: ObservableObject {
         focusEnabled = defaults.object(forKey: "focusEnabled") as? Bool ?? false
         focusColor = Self.load(HS.self, "focusColor") ?? HS(hue: 190, sat: 255)
         focusColors = Self.load([String: HS].self, "focusColors") ?? [:]
-        focusIgnored = Set(defaults.stringArray(forKey: "focusIgnored") ?? [])
+        focusUsed = Set(defaults.stringArray(forKey: "focusUsed") ?? [])
         knownFocus = Self.load([String: String].self, "knownFocus") ?? [:]
         selectedDevice = defaults.string(forKey: "selectedDevice")
         alertBlinks = defaults.object(forKey: "alertBlinks") as? Int ?? 3
@@ -295,7 +297,8 @@ final class Controller: ObservableObject {
             ids = [match ?? "unknown"]
         }
 
-        let live = focusEnabled ? ids.filter { !focusIgnored.contains($0) } : []
+        // A Focus reported by a Shortcuts automation whose mode we couldn't match counts as ticked: the user set that up on purpose.
+        let live = focusEnabled ? ids.filter { focusUsed.contains($0) || (!snap.readable && $0 == "unknown") } : []
         let color = live.first.map { focusColors[$0] ?? focusColor }
         let names = live.map { knownFocus[$0] ?? "Focus" }
         if names != focusActiveNames { focusActiveNames = names }

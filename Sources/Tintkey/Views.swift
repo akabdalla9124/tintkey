@@ -8,6 +8,11 @@ struct MenuView: View {
 
     var body: some View {
         Text(controller.connected ? "Connected: \(controller.deviceName)" : "No VIA keyboard found")
+        if controller.meetingActive {
+            Label("Meeting mode is overriding app colors", systemImage: "video.fill")
+        } else if controller.focusActive {
+            Label("Focus (\(controller.focusActiveNames.joined(separator: ", "))) is overriding app colors", systemImage: "moon.fill")
+        }
         Picker("Mode", selection: $controller.mode) {
             ForEach(Mode.allCases) { Text($0.title).tag($0) }
         }
@@ -386,17 +391,17 @@ struct GeneralTab: View {
                             HStack {
                                 Text(name)
                                 Spacer()
-                                Toggle("Use", isOn: Binding(get: { !controller.focusIgnored.contains(id) },
-                                                            set: { on in if on { controller.focusIgnored.remove(id) } else { controller.focusIgnored.insert(id) } }))
+                                Toggle("Use", isOn: Binding(get: { controller.focusUsed.contains(id) },
+                                                            set: { on in if on { controller.focusUsed.insert(id) } else { controller.focusUsed.remove(id) } }))
                                     .toggleStyle(.checkbox).font(.callout)
-                                if !controller.focusIgnored.contains(id) {
+                                if controller.focusUsed.contains(id) {
                                     ColorPicker("Color", selection: colorBinding({ controller.focusColors[id] ?? controller.focusColor }, { controller.focusColors[id] = $0 }), supportsOpacity: false)
                                         .labelsHidden()
                                     if controller.focusColors[id] != nil { Button("Reset") { controller.focusColors[id] = nil }.buttonStyle(.link).font(.callout) }
                                 }
                             }
                         }
-                        Text("Each Focus can have its own color. Modes you haven't seen turn on yet appear here the first time they do. Turn off \"Use\" for a Focus that should leave the keyboard alone.")
+                        Text("Tick \"Use\" for the Focuses that should change the keyboard, and give each its own color. Focuses you don't tick leave the keyboard alone, so a scheduled one like Sleep can't override your app colors. New Focuses appear here the first time they turn on.")
                             .font(.callout).foregroundStyle(.secondary)
                     } else {
                         Text("macOS only lets apps read the Focus state with Full Disk Access. Either grant it to Tintkey, or in the Shortcuts app create automations (when a Focus turns on and off) that open tintkey://focus?on=1&mode=Work and tintkey://focus?on=0.")
